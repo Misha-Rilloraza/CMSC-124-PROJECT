@@ -1,4 +1,4 @@
-from token import tokenizer
+from lexer import tokenizer
 
 # diretso na, para madali na i-adjust kapag coconnect na sa frontend
 class Parser:
