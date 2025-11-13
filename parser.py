@@ -1,5 +1,6 @@
 from token import tokenizer
 
+# diretso na, para madali na i-adjust kapag coconnect na sa frontend
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
@@ -8,7 +9,7 @@ class Parser:
         self.advance()
 
     def advance(self):
-        """Move to the next token"""
+        # move on to next token
         self.token_index += 1
         if self.token_index < len(self.tokens):
             self.current_token = self.tokens[self.token_index]
@@ -17,13 +18,13 @@ class Parser:
         return self.current_token
 
     def peek(self):
-        """Look at the next token without consuming it"""
+        # look at the next token without consuming it
         if self.token_index + 1 < len(self.tokens):
             return self.tokens[self.token_index + 1]
         return None
 
     def error_handle(self, token_type, value=None):
-        """Expect a specific token type and optionally value"""
+        # eExpect a specific token type and optionally value
         if self.current_token and self.current_token['token_name'] == token_type:
             if value is None or self.current_token['pattern'] == value:
                 token = self.current_token
@@ -37,7 +38,8 @@ class Parser:
             self.error(f"Expected {expected}, but got {got}")
 
     def error(self, message):
-        """Report parsing error with line/column information"""
+        # for the errors, indicate line number and column number
+        # and unexpected error
         if self.current_token:
             line = self.current_token['line_number']
             column = self.current_token['column_number']
@@ -49,7 +51,7 @@ class Parser:
         """Program -> HAI statements KTHXBYE"""
         print("Parsing program...")
         
-        # Expect HAI at beginning
+        # always HAI sa start
         self.error_handle("Code Delimeter", "HAI")
         
         # sa bawat statement
@@ -64,7 +66,7 @@ class Parser:
                 if statement:
                     statements.append(statement)
         
-        # Expect KTHXBYE at end
+        # KTHXBYE eof
         self.error_handle("Code Delimeter", "KTHXBYE")
         
         return {
@@ -73,27 +75,28 @@ class Parser:
         }
 
     def parse_statement(self):
-        """Parse different types of statements"""
+        # for the statements (parsing)
         if not self.current_token:
             return None
             
         token_value = self.current_token['pattern']
         
-        # Variable declaration
+        # variable declaration
         if token_value == "I HAS A":
             return self.parse_variable_declaration()
         
-        # Output statement
+        # output statement
         elif token_value == "VISIBLE":
             return self.parse_output_statement()
         
-        # For now, skip other tokens we don't handle yet
+        # for now, skip other tokens we don't handle yet
         else:
             self.advance()
             return self.parse_statement()
 
     def parse_variable_block(self):
-        """WAZZUP variable_declarations BUHBYE"""
+        # take note of block structures
+        # WAZZUP -- BUHBYE
         print("Parsing variable block...")
         self.error_handle("Variable List Delimeter", "WAZZUP")
         
@@ -113,7 +116,7 @@ class Parser:
         }
 
     def parse_variable_declaration(self):
-        """I HAS A identifier (ITZ expression)?"""
+        # identifiers
         self.error_handle("Variable Declaration", "I HAS A")
         
         identifier = self.error_handle("Variable Identifier")
@@ -131,7 +134,7 @@ class Parser:
         }
 
     def parse_output_statement(self):
-        """VISIBLE expression+"""
+        # visible
         self.error_handle("Output Keyword", "VISIBLE")
         
         expressions = []
@@ -148,7 +151,7 @@ class Parser:
         }
 
     def parse_expression(self):
-        """Parse expressions with operator precedence"""
+        # parse expressions with operator precedence
         return self.parse_logical_or()
 
     def parse_logical_or(self):
@@ -222,18 +225,20 @@ class Parser:
         return left
 
     def parse_factor(self):
-        """Parse basic expressions: literals, identifiers, and arithmetic operations"""
+        # basic expressions: literals, identifiers, and arithmetic operations
         if not self.current_token:
             return None
         
-        # Handle arithmetic operations at the factor level
+        # hiwalay arithmetic and comparison operators
+        # wala pang logical atmm
+        # arithmetic operations at the factor level
         if self.current_token['pattern'] in ["SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF"]:
             return self.parse_arithmetic_operation()
         
         if self.current_token['pattern'] in ["BIGGR OF", "SMALLR OF", "BOTH SAEM", "DIFFRINT"]:
             return self.parse_comparison_operation()
         
-        # Handle boolean literals (WIN and FAIL)
+        # boolean literals (WIN and FAIL)
         if self.current_token['token_name'] == "Boolean Literal":
             value = self.current_token
             self.advance()
@@ -243,7 +248,7 @@ class Parser:
                 'value': value['pattern']
             }
         
-        # Handle other literals
+        # other literals
         elif self.current_token['token_name'] in ["String Literal", "Integer Literal", "Float Literal"]:
             value = self.current_token
             self.advance()
@@ -253,7 +258,7 @@ class Parser:
                 'value': value['pattern']
             }
         
-        # Handle type literals
+        # type literals
         elif self.current_token['token_name'] == "Type Literal":
             value = self.current_token
             self.advance()
@@ -262,7 +267,7 @@ class Parser:
                 'value': value['pattern']
             }
         
-        # Handle identifiers
+        # identifiers
         elif self.current_token['token_name'] == "Variable Identifier":
             identifier = self.current_token
             self.advance()
@@ -271,14 +276,14 @@ class Parser:
                 'name': identifier['pattern']
             }
         
-        # Handle parentheses
+        # parentheses
         elif self.current_token['pattern'] == "(":
             self.advance()  # consume (
             expr = self.parse_expression()
             self.error_handle(")", ")")
             return expr
         
-        # Handle unary NOT
+        # unary NOT
         elif self.current_token['pattern'] == "NOT":
             self.advance()
             operand = self.parse_factor()
@@ -292,7 +297,6 @@ class Parser:
             self.error(f"Unexpected token in expression: {self.current_token['pattern'] if self.current_token else 'EOF'}")
 
     def parse_arithmetic_operation(self):
-        """Parse arithmetic operations like SUM OF expr AN expr"""
         operator = self.current_token['pattern']
         self.advance()  # consume operator
         
@@ -314,7 +318,6 @@ class Parser:
         }
     
     def parse_comparison_operation(self):
-        """Parse arithmetic operations like SUM OF expr AN expr"""
         operator = self.current_token['pattern']
         self.advance()  # consume operator
         
@@ -336,7 +339,7 @@ class Parser:
         }
 
 def parse(filename):
-    """Main parsing function"""
+    # main function for parsing
     try:
         tokens = tokenizer(filename)
         print(f"Tokenization complete. Found {len(tokens)} tokens.")
@@ -358,7 +361,7 @@ def parse(filename):
         return None
 
 def print_ast(node, indent=0):
-    """Pretty print the AST"""
+    # print AST
     if not node:
         return
     
