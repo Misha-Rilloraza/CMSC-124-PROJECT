@@ -1,10 +1,10 @@
-from token import tokenizer
+from lexer import tokenizer
 from parser import parse, print_ast
 import sys
 
 def main():
     """Main function demonstrating both tokenization and parsing"""
-    filename = sys.argv[1] if len(sys.argv) > 1 else "t1.lol"
+    filename = sys.argv[1] if len(sys.argv) > 1 else "smoosh_assign.lol"
     
     try:     
         # Step 1: Lexical Analysis

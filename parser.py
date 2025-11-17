@@ -1,4 +1,4 @@
-from token import tokenizer
+from lexer import tokenizer
 
 class Parser:
     def __init__(self, tokens):
@@ -56,13 +56,17 @@ class Parser:
         # dito mapupunta ung breakdown ng keywords
         # tapos iaarrange into a tree for easier analysis
         statements = []
-        while self.current_token and self.current_token['pattern'] != "KTHXBYE":
+        while self.current_token and self.peek() and self.peek()['pattern'] != "KTHXBYE":
             if self.current_token['pattern'] == "WAZZUP":
                 statements.append(self.parse_variable_block())
             else:
                 statement = self.parse_statement()
                 if statement:
                     statements.append(statement)
+                else:
+                    if self.current_token and self.current_token['pattern'] != "KTHXBYE":
+                        self.error(f"Unexpected token: {self.current_token['pattern']}")
+                    break
         
         # Expect KTHXBYE at end
         self.error_handle("Code Delimeter", "KTHXBYE")
@@ -73,7 +77,9 @@ class Parser:
         }
 
     def parse_statement(self):
-        """Parse different types of statements"""
+        """<statement> ::= <print> | <input> | <declare_var> | <assign_var> | <typecast> 
+        | <conditional> | <loop> | <function> | <function_call> | <return> | <break> 
+        | <single_comment> | <multi_comment>"""
         if not self.current_token:
             return None
             
@@ -86,7 +92,38 @@ class Parser:
         # Output statement
         elif token_value == "VISIBLE":
             return self.parse_output_statement()
+         
+        # Input statement -added
+        elif token_value == "GIMMEH":
+            return self.parse_input_statement()
+
+        # Loop statement - added
+        elif token_value == "IM IN YR":
+            return self.parse_loop_statement()
         
+        # Variable assignment: <identifier> R <expression>
+        elif (self.current_token['token_name'] == "Variable Identifier" and
+            self.peek() and self.peek()['pattern'] == "R"):
+            return self.parse_variable_assignment()
+
+        # Variable typecasting: varident IS NOW A literal
+        elif (self.current_token['token_name'] == "Variable Identifier"
+            and self.peek()
+            and self.peek()['pattern'] == "IS NOW A"):
+            return self.parse_typecast_isnow()
+        
+         # conditional statements O RLY?
+        elif (self.current_token['token_name'] in ["Variable Identifier", "String Literal", "Integer Literal", "Float Literal", "Boolean Literal"] or
+            self.current_token['pattern'] in ["SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF", "BIGGR OF", "SMALLR OF", "BOTH SAEM", "DIFFRINT",
+            "SMOOSH", "MAEK", "NOT"]):
+            
+            # check if conditional when theres O RLY?
+            if self.peek() and self.peek()['pattern'] == "O RLY?":
+                return self.parse_conditional_statement()
+            else:
+                self.advance()
+                return self.parse_statement()
+
         # For now, skip other tokens we don't handle yet
         else:
             self.advance()
@@ -136,11 +173,14 @@ class Parser:
         
         expressions = []
         while (self.current_token and 
-               self.current_token['pattern'] not in ["KTHXBYE", "VISIBLE"] and
+               self.current_token['pattern'] not in ["KTHXBYE", "VISIBLE", "GIMMEH", "I HAS A", "O RLY?", 
+               "MEBBE", "NO WAI", "OIC", "IM OUTTA YR", "IM IN YR", "AN"] and
                not (self.current_token['token_name'] == "Comment")):
             expr = self.parse_expression()
             if expr:
                 expressions.append(expr)
+            else:
+                break
         
         return {
             'type': 'output_statement',
@@ -195,6 +235,7 @@ class Parser:
 
     def parse_arithmetic(self):
         left = self.parse_term()
+
         while self.current_token and self.current_token['pattern'] in ["SUM OF", "DIFF OF"]:
             operator = self.current_token['pattern']
             self.advance()
@@ -253,6 +294,10 @@ class Parser:
                 'value': value['pattern']
             }
         
+        # Handle Concatenation (added)
+        elif self.current_token['pattern'] == "SMOOSH":
+            return self.parse_smoosh()
+
         # Handle type literals
         elif self.current_token['token_name'] == "Type Literal":
             value = self.current_token
@@ -288,8 +333,17 @@ class Parser:
                 'operand': operand
             }
         
+        # Handle type casting (added)
+        elif self.current_token['pattern'] == "MAEK":
+            return self.parse_typecast_maek()
+
+        elif self.current_token['pattern'] in ["R", "IS NOW A", "VISIBLE", "GIMMEH", "I HAS A", 
+                                          "O RLY?", "MEBBE", "NO WAI", "OIC", "IM IN YR", 
+                                          "IM OUTTA YR", "KTHXBYE", "BUHBYE", "AN"]:
+            return None
+
         else:
-            self.error(f"Unexpected token in expression: {self.current_token['pattern'] if self.current_token else 'EOF'}")
+            self.error(f"Unexpected token: {self.current_token['pattern']}")
 
     def parse_arithmetic_operation(self):
         """Parse arithmetic operations like SUM OF expr AN expr"""
@@ -298,6 +352,8 @@ class Parser:
         
         # Parse first operand
         operand1 = self.parse_expression()
+        if operand1 is None:
+            self.error(f"Expected expression after {operator}")
         
         # Expect AN
         if self.current_token and self.current_token['pattern'] == "AN":
@@ -305,12 +361,14 @@ class Parser:
         
         # Parse second operand
         operand2 = self.parse_expression()
+        if operand2 is None:  
+            self.error(f"Expected expression after AN in {operator}")
         
         return {
             'type': 'arithmetic_operation',
             'operator': operator,
-            'operand1': operand1,
-            'operand2': operand2
+            'left': operand1,
+            'right': operand2
         }
     
     def parse_comparison_operation(self):
@@ -320,6 +378,8 @@ class Parser:
         
         # Parse first operand
         operand1 = self.parse_expression()
+        if operand1 is None:  
+            self.error(f"Expected expression after {operator}")
         
         # Expect AN
         if self.current_token and self.current_token['pattern'] == "AN":
@@ -327,12 +387,275 @@ class Parser:
         
         # Parse second operand
         operand2 = self.parse_expression()
+        if operand2 is None: 
+            self.error(f"Expected expression after AN in {operator}")
+
         
         return {
             'type': 'comparison_operation',
             'operator': operator,
-            'operand1': operand1,
-            'operand2': operand2
+            'left': operand1,
+            'right': operand2
+        }
+    
+    def parse_conditional_statement(self):
+        """<conditional> ::= <expr> <linebreak> O RLY? <linebreak> <if> <linebreak> OIC"""        
+        # Parse expressio
+        condition = self.parse_expression()
+        
+        # Expect O RLY?
+        self.error_handle("If Keyword", "O RLY?")
+        
+        # Parse if block
+        if_block = self.parse_if_block()
+        
+        # Expect OIC
+        self.error_handle("If-Then-Else End", "OIC")
+        
+        return {
+            'type': 'conditional_statement',
+            'condition': condition,
+            'if_block': if_block
+        }
+
+    def parse_if_block(self):
+        """
+        <if> ::=
+            YA RLY <linebreak> <statement_block>
+        | YA RLY <linebreak> <statement_block> <linebreak> <else_if>
+        | YA RLY <linebreak> <statement_block> <linebreak> <else>
+        """
+        self.error_handle("Then Keyword", "YA RLY")
+        
+        # Parse YA RLY
+        then_block = self.parse_statement_block()
+        
+        # Check for other statements
+        elseif_block = []
+        else_block = None
+        
+        if self.current_token and self.current_token['pattern'] == "MEBBE":
+            elseif_block = self.parse_elseif_block()
+        elif self.current_token and self.current_token['pattern'] == "NO WAI":
+            else_block = self.parse_else()
+        
+        return {
+            'type': 'if_block',
+            'then_block': then_block,
+            'elseif_block': elseif_block,
+            'else_block': else_block
+        }
+
+    def parse_elseif_block(self):
+        """
+        <else_if> ::=
+            MEBBE <expr> <linebreak> <statement_block>
+        | MEBBE <expr> <linebreak> <statement_block> <linebreak> <else_if>
+        | <else>
+        """
+        elseif_block = []
+        
+        while self.current_token and self.current_token['pattern'] == "MEBBE":
+            self.advance()  # consume MEBBE
+            
+            # Parse condition
+            condition = self.parse_expression()
+            
+            # Parse statement block
+            statements = self.parse_statement_block()
+            
+            elseif_block.append({
+                'type': 'elseif_block',
+                'condition': condition,
+                'statements': statements
+            })
+        
+        # Check for other chains of statments
+        else_block = None
+        if self.current_token and self.current_token['pattern'] == "NO WAI":
+            else_block = self.parse_else()
+        
+        return elseif_block
+
+    def parse_else(self):
+        """<else> ::= NO WAI <linebreak> <statement_block>"""
+        self.error_handle("Else Keyword", "NO WAI")
+        
+        statements = self.parse_statement_block()
+        
+        return {
+            'type': 'else_block',
+            'statements': statements
+        }
+
+    def parse_statement_block(self):
+        """
+        <statement_block> ::=
+            <statement> 
+        | <statement> <linebreak> <statement_block>
+        """
+        statements = []
+        start_index = self.token_index
+        
+        while self.current_token and self.current_token['pattern'] != "KTHXBYE":
+            # Check end keywords
+            if self.current_token['pattern'] in ["MEBBE", "NO WAI", "OIC", "IM OUTTA YR"]:
+                break
+                
+            # Parse statement
+            statement = self.parse_statement()
+            if statement:
+                statements.append(statement)
+            else:
+                self.advance()
+        
+        return statements
+    
+    def parse_input_statement(self):
+        """GIMMEH identifier"""
+        self.error_handle("Input Keyword", "GIMMEH")
+        
+        identifier = self.error_handle("Variable Identifier")
+        
+        return {
+            'type': 'input_statement',
+            'identifier': identifier['pattern']
+        }
+    
+    def parse_loop_statement(self):
+        """<loop> ::= IM IN YR loopident <loop_condition> <linebreak> <statement_block> IM OUTTA YR loopident
+                    | IM IN YR loopident <linebreak> <statement_block> IM OUTTA YR loopident"""        
+        # Expect IM IN YR
+        self.error_handle("Start Loop Label", "IM IN YR")
+        
+        # Parse loop identifier
+        start_loop_ident = self.error_handle("Variable Identifier")
+        
+        # Check for loop condition
+        loop_condition = None
+        if self.current_token and self.current_token['pattern'] in ["UPPIN YR", "NERFIN YR"]:
+            loop_condition = self.parse_loop_condition()
+        
+        # Parse statement block
+        statements = self.parse_statement_block()
+        
+        # Expect IM OUTTA YR
+        self.error_handle("End Loop Label", "IM OUTTA YR")
+        
+        # Parse loop identifier (IM IN YR loop and IM OUTTA YR loop)
+        end_loop_ident = self.error_handle("Variable Identifier")
+        
+        return {
+            'type': 'loop_statement',
+            'loop_identifier': start_loop_ident['pattern'],
+            'loop_condition': loop_condition,
+            'statements': statements
+        }
+
+    def parse_loop_condition(self):
+        """<loop_condition> ::= UPPIN YR varident TIL <expr>
+                            | UPPIN YR varident WILE <expr>
+                            | NERFIN YR varident TIL <expr>
+                            | NERFIN YR varident WILE <expr>"""
+        # Parse loop operation
+        loop_operation = self.current_token
+        self.advance()  # consume UPPIN/NERFIN
+        
+        # Parse variable identifier
+        var_ident = self.error_handle("Variable Identifier")
+        
+        # Parse loop condition (TIL/WILE)
+        if self.current_token and (self.current_token['pattern'] == "TIL" or 
+        self.current_token['pattern'] == "WILE"):
+            loop_condition = self.current_token['pattern']
+            self.advance()  # consume TI/WILE
+        
+        # Parse condition
+        condition = self.parse_expression()
+        
+        return {
+            'type': 'loop_condition',
+            'loop_operation': loop_operation['pattern'],  # UPPIN/NERFIN YR
+            'variable': var_ident['pattern'],
+            'loop_condition': loop_condition,  # TIL/WILE
+            'condition': condition
+        }
+    
+
+    def parse_variable_assignment(self):
+        """identifier R expression"""
+
+        identifier = self.current_token['pattern']
+        self.advance()  # consume identifier
+
+        self.error_handle("Variable Assignment")  # consume R
+
+        value = self.parse_expression()
+
+        return {
+            'type': 'variable_assignment',
+            'identifier': identifier,
+            'value': value
+        }
+    
+    def parse_smoosh(self):
+        """SMOOSH expression (AN expression)*"""
+        self.advance()  # consume SMOOSH
+        parts = []
+
+        # Parse first expression
+        parts.append(self.parse_expression())
+
+        # if theres more than one AN then parse those
+        while self.current_token and self.current_token['pattern'] == "AN":
+            self.advance()  # consume AN
+            parts.append(self.parse_expression())
+
+        return {
+            'type': 'smoosh',
+            'parts': parts
+        }
+
+    def parse_typecast_isnow(self):
+        """varident IS NOW A <literal>"""
+        varident = self.current_token['pattern']
+        self.advance()  # consume identifier
+
+        self.error_handle("Recast Variable", "IS NOW A")  # consumes IS NOW A
+
+        # Handle Type Literal
+        if self.current_token['pattern'] in ["NOOB", "NUMBR", "NUMBAR", "YARN", "TROOF"]:
+            type_literal = self.current_token
+            self.advance() 
+        else:
+            self.error("Expected type literal after IS NOW A")
+
+        return {
+            'type': 'typecast_isnow',
+            'identifier': varident,
+            'convert_to_type': type_literal['pattern']
+        }
+
+    def parse_typecast_maek(self):
+        """MAEK <expr> A <literal>"""
+        self.advance()  # consume MAEK
+
+        expr = self.parse_expression()
+
+        # Expect A
+        self.error_handle("Explicit Casting", "A")
+
+        # Handle Type Literal
+        if self.current_token['pattern'] in ["NOOB", "NUMBR", "NUMBAR", "YARN", "TROOF"]:
+            type_literal = self.current_token
+            self.advance()
+        else:
+            self.error("Expected type literal after A")
+
+        return {
+            'type': 'typecast_maek',
+            'expression': expr,
+            'convert_to_type': type_literal['pattern']
         }
 
 def parse(filename):
@@ -404,24 +727,91 @@ def print_ast(node, indent=0):
     
     elif node_type == 'arithmetic_operation':
         print(f"{prefix}Arithmetic Operation: {node['operator']}")
-        print_ast(node['operand1'], indent + 1)
-        print_ast(node['operand2'], indent + 1)
+        print_ast(node['left'], indent + 1)
+        print_ast(node['right'], indent + 1)
     
     elif node_type == 'comparison_operation':
         print(f"{prefix}Comparison Operation: {node['operator']}")
-        print_ast(node['operand1'], indent + 1)
-        print_ast(node['operand2'], indent + 1)
+        print_ast(node['left'], indent + 1)
+        print_ast(node['right'], indent + 1)
     
     elif node_type == 'logical_operation':
         print(f"{prefix}Logical Operation: {node['operator']}")
         print_ast(node['left'], indent + 1)
         print_ast(node['right'], indent + 1)
+
+    elif node_type == 'conditional_statement':
+        print(f"{prefix}Conditional Statement:")
+        print(f"{prefix}  Expression/Condition:")
+        print_ast(node['condition'], indent + 2)
+        print_ast(node['if_block'], indent + 1)
     
+    elif node_type == 'if_block':
+        print(f"{prefix}If Structure:")
+        print(f"{prefix}  Then Block (YA RLY):")
+        for stmt in node['then_block']:
+            print_ast(stmt, indent + 3)
+        
+        for else_if in node['elseif_block']:
+            print(f"{prefix}  Else-If Block (MEBBE):")
+            print(f"{prefix}    Condition:")
+            print_ast(else_if['condition'], indent + 4)
+            for stmt in else_if['statements']:
+                print_ast(stmt, indent + 4)
+        
+        if node['else_block']:
+            print(f"{prefix}  Else Block (NO WAI):")
+            for stmt in node['else_block']['statements']:
+                print_ast(stmt, indent + 3)
+    
+    elif node_type == 'input_statement':
+        print(f"{prefix}Input Statement: {node['identifier']}")
+
+    elif node_type == 'loop_statement':
+        print(f"{prefix}Loop Statement:")
+        print(f"{prefix}  Identifier: {node['loop_identifier']}")
+        if node['loop_condition']:
+            print_ast(node['loop_condition'], indent + 1)
+        print(f"{prefix}  Statements:")
+        for stmt in node['statements']:
+            print_ast(stmt, indent + 2)
+
+    elif node_type == 'loop_condition':
+        print(f"{prefix}Loop Condition:")
+        print(f"{prefix}  Loop Operation: {node['loop_operation']}")
+        print(f"{prefix}  Variable: {node['variable']}")
+        print(f"{prefix}  Loop Condition: {node['loop_condition']}")
+        print(f"{prefix}  Condition:")
+        print_ast(node['condition'], indent + 2)
+
+    #added
+    elif node_type == 'variable_assignment':
+        print(f"{prefix}Assignment (=):")
+        print(f"{prefix}  Variable: {node['identifier']}")
+        print(f"{prefix}  Value:")
+        print_ast(node['value'], indent + 2)
+    
+    elif node_type == 'smoosh':
+        print(f"{prefix}String Concatenation (SMOOSH):")
+        for part in node['parts']:
+            print_ast(part, indent + 1)
+
+    elif node_type == 'typecast_isnow':
+        print(f"{prefix}Typecast (IS NOW A):")
+        print(f"{prefix}  Variable: {node['identifier']}")
+        print(f"{prefix}  Convert To: {node['convert_to_type']}")  
+
+    elif node_type == 'typecast_maek':
+        print(f"{prefix}Type Cast (MAEK):")
+        print(f"{prefix}  Expression:")
+        print_ast(node['expression'], indent + 2)
+        print(f"{prefix}  Convert To: {node['convert_to_type']}")
+
     else:
         print(f"{prefix}Unknown node: {node}")
 
 if __name__ == "__main__":
-    filename = "t5.lol"
+    filename = "smoosh_assign.lol"
     
     print("=" * 60)
     print(f"PARSING: {filename}")
