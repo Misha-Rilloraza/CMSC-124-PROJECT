@@ -17,5 +17,11 @@ streamlit run app.py
 # Create and activate the virtual environment
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+
+or
+
+python3 -m venv venv
+source venv/bin/activate
+
 # Then run Streamlit
 streamlit run app.py
