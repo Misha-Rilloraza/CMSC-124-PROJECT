@@ -1,0 +1,14 @@
+[+-]?[0-9]*;NUMBR Literal
+^[+-]?[0-9]+\.[0-9]+;NUMBAR Literal
+"[^"\r]*";YARN Literal;
+^(WIN|FAIL);TROOF Literal;
+^(NOOB|NUMBR|NUMBAR|YARN|TROOF);TYPE Literal
+
+
+extracted from which line number
+
+syntax analyzer, group into statements
+line numbers for error
+syntax:
+parse buong code - per line ggroup ang tokens into statements
+(list of statements)

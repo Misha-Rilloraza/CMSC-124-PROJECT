@@ -1,0 +1,53 @@
+\bHAI\b;Code Delimeter
+\bKTHXBYE\b;Code Delimeter
+\bWAZZUP\b;Variable List Delimeter
+\bBUHBYE\b;Variable List Delimeter
+\bBTW\b;Comment
+\bOBTW\b;Comment
+\bTLDR\b;Comment
+\bI\sHAS\sA\b;Variable Declaration
+\bITZ\b;Variable Assignment (following I HAS A)
+\bR\b;Variable Assignment
+\bSUM\sOF\b;Arithmetic Operator
+\bDIFF\sOF\b;Arithmetic Operator
+\bPRODUKT\sOF\b;Arithmetic Operator
+\bQUOSHUNT\sOF\b;Arithmetic Operator
+\bMOD\sOF\b;Arithmetic Operator
+\bBIGGR\sOF\b;Comparison Operator
+\bSMALLR\sOF\b;Comparison Operator
+\bBOTH\sOF\b;Logical Operator
+\bEITHER\sOF\b;Logical Operator
+\bWON\sOF\b;Logical Operator
+\bNOT\b;Unary Operator
+\bANY\sOF\b;Logical Operator
+\bALL\sOF\b;Logical Operator
+\bBOTH\sSAEM\b;Comparison Operator
+\bDIFFRINT\b;Comparison Operator
+\bSMOOSH\b;String Concatenation
+\bMAEK\b;Type Casting
+\bA\b;Explicit Casting
+\bIS\sNOW\sA\b;Recast Variable
+\bVISIBLE\b;Output Keyword
+\bGIMMEH\b;Input Keyword
+\bO\sRLY\?\b;If Keyword
+\bYA\sRLY\b;Then Keyword
+\bMEBBE\b;ElseIf Keyword
+\bNO\sWAI\b;Else Keyword
+\bOIC\b;If-Then-Else End
+\bWTF\?\b;Switch
+\bOMG\b;Comparison Statement
+\bOMGWTF\b;Default Comparison Statement
+\bIM\sIN\sYR\b;Start Loop Label
+\bUPPIN\b;Increment
+\bNERFIN\b;Decrement
+\bYR\b;Argument
+\bTIL\b;Until Loop
+\bWILE\b;WHile Loop
+\bIM\sOUTTA\sYR\b;End Loop Label
+\bHOW\sIZ\sI\b;Begin Function Definition
+\bIF\sYOU\sSAY\sSO\b;End Function Definition
+\bGTFO\b;Break Statement
+\bFOUND\sYR\b;Return Keyword
+\bI\sIZ\b;Function Call
+\bMKAY\b;Argument End
+\bAN\b;Multiple Parameter Separator
