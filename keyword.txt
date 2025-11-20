@@ -29,20 +29,19 @@
 \bIS\sNOW\sA\b;Recast Variable
 \bVISIBLE\b;Output Keyword
 \bGIMMEH\b;Input Keyword
-\bO\sRLY\?\b;If Keyword
+\bO\sRLY\?;If Keyword
 \bYA\sRLY\b;Then Keyword
 \bMEBBE\b;ElseIf Keyword
 \bNO\sWAI\b;Else Keyword
 \bOIC\b;If-Then-Else End
-\bWTF\?\b;Switch
+\bWTF\?;Switch
 \bOMG\b;Comparison Statement
 \bOMGWTF\b;Default Comparison Statement
 \bIM\sIN\sYR\b;Start Loop Label
-\bUPPIN\b;Increment
-\bNERFIN\b;Decrement
-\bYR\b;Argument
+\bUPPIN\sYR\b;Increment
+\bNERFIN\sYR\b;Decrement
 \bTIL\b;Until Loop
-\bWILE\b;WHile Loop
+\bWILE\b;While Loop
 \bIM\sOUTTA\sYR\b;End Loop Label
 \bHOW\sIZ\sI\b;Begin Function Definition
 \bIF\sYOU\sSAY\sSO\b;End Function Definition
