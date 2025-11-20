@@ -54,9 +54,9 @@ class Interpreter:
     def execute_statement(self, node):
         if not node:
             return
-        
+
         stmt_type = node['type']
-        
+
         if stmt_type == 'variable_block':
             self.execute_variable_block(node)
         elif stmt_type == 'variable_declaration':
@@ -65,7 +65,8 @@ class Interpreter:
             self.execute_output_statement(node)
         elif stmt_type == 'input_statement':
             self.execute_input_statement(node)
-        elif stmt_type == 'assignment':
+        # Accept both parser-produced names: 'assignment' and 'variable_assignment'
+        elif stmt_type in ('assignment', 'variable_assignment'):
             self.execute_assignment(node)
         else:
             pass
@@ -102,6 +103,9 @@ class Interpreter:
         
         output = ' '.join(output_parts)
         self.output_buffer.append(output)
+        # Store the last printed output in the special variable IT so it
+        # appears in the symbol table (matches expected sample behavior).
+        self.symbol_table['IT'] = output
     
     # Execute GIMMEH statement
     def execute_input_statement(self, node):
