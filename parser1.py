@@ -1,29 +1,7 @@
 from lexer import tokenizer
 
-# class Stack:
-#     def __init__(self):
-#         self.items = []
-    
-#     def is_empty(self):
-#         return len(self.items) == 0
-    
-#     def push(self, item):
-#         self.items.append(item)
-    
-#     def pop(self):
-#         if not self.is_empty():
-#             return self.items.pop()
-#         return None
-    
-#     def peek(self):
-#         if not self.is_empty():
-#             return self.items[-1]
-#         return None
-    
-#     def size(self):
-#         return len(self.items)
-
-class Parser:      
+# diretso na, para madali na i-adjust kapag coconnect na sa frontend
+class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
         self.current_token = None
@@ -38,13 +16,13 @@ class Parser:
         else:
             self.current_token = None
         return self.current_token
-    
+
     def peek(self):
         # look at the next token without consuming it
         if self.token_index + 1 < len(self.tokens):
             return self.tokens[self.token_index + 1]
         return None
-    
+
     def error_handle(self, token_type, value=None):
         # eExpect a specific token type and optionally value
         if self.current_token and self.current_token['token_name'] == token_type:
@@ -68,14 +46,14 @@ class Parser:
             raise SyntaxError(f"Line {line}, Column {column}: {message}")
         else:
             raise SyntaxError(f"Unexpected end of file: {message}")
-    
-    # parse token-by-token
+
     def parse_program(self):
+        """Program -> HAI statements KTHXBYE"""
         print("Parsing program...")
-
-        # code always start with HAI and end with KTHXBYE
+        
+        # always HAI sa start
         self.error_handle("Code Delimiter", "HAI")
-
+        
         # sa bawat statement
         # dito mapupunta ung breakdown ng keywords
         # tapos iaarrange into a tree for easier analysis
@@ -91,19 +69,22 @@ class Parser:
                     if self.current_token and self.current_token['pattern'] != "KTHXBYE":
                         self.error(f"Unexpected token: {self.current_token['pattern']}")
                     break
-
+        
         # KTHXBYE eof
         self.error_handle("Code Delimiter", "KTHXBYE")
         
         return {
             'type': 'program',
             'statements': statements
-        }     
-    
+        }
+
     def parse_statement(self):
+        """<statement> ::= <print> | <input> | <declare_var> | <assign_var> | <typecast> 
+        | <conditional> | <loop> | <function> | <function_call> | <return> | <break> 
+        | <single_comment> | <multi_comment>"""
         if not self.current_token:
             return None
-        
+            
         token_value = self.current_token['pattern']
         
         # variable declaration
@@ -113,17 +94,17 @@ class Parser:
         # output statement
         elif token_value == "VISIBLE":
             return self.parse_output_statement()
-        
-        # input statement
+         
+        # Input statement -added
         elif token_value == "GIMMEH":
             return self.parse_input_statement()
-        
-        # Loop statement
+
+        # Loop statement - added
         elif token_value == "IM IN YR":
             return self.parse_loop_statement()
         
         # Variable assignment: <identifier> R <expression>
-        elif (self.current_token['token_name'] == "Variable Re-Assignment" and
+        elif (self.current_token['token_name'] == "Variable Identifier" and
             self.peek() and self.peek()['pattern'] == "R"):
             return self.parse_variable_assignment()
 
@@ -133,7 +114,7 @@ class Parser:
             and self.peek()['pattern'] == "IS NOW A"):
             return self.parse_typecast_isnow()
         
-        # conditional statements O RLY?
+         # conditional statements O RLY?
         elif (self.current_token['token_name'] in ["Variable Identifier", "String Literal", "Integer Literal", "Float Literal", "Boolean Literal"] or
             self.current_token['pattern'] in ["SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF", "BIGGR OF", "SMALLR OF", "BOTH SAEM", "DIFFRINT",
             "SMOOSH", "MAEK", "NOT"]):
@@ -142,18 +123,14 @@ class Parser:
             if self.peek() and self.peek()['pattern'] == "O RLY?":
                 return self.parse_conditional_statement()
             else:
-                # Handle expressions that aren't part of conditionals
-                expr = self.parse_expression()
-                return {
-                    'type': 'expression_statement',
-                    'expression': expr
-                }
+                self.advance()
+                return self.parse_statement()
 
         # For now, skip other tokens we don't handle yet
         else:
             self.advance()
             return self.parse_statement()
-        
+
     def parse_variable_block(self):
         # take note of block structures
         # WAZZUP -- BUHBYE
@@ -174,7 +151,25 @@ class Parser:
             'type': 'variable_block',
             'declarations': declarations
         }
+
+    def parse_variable_declaration(self):
+        # identifiers
+        self.error_handle("Variable Declaration", "I HAS A")
         
+        identifier = self.error_handle("Variable Identifier")
+        
+        # Optional assignment with ITZ
+        initial_value = None
+        if self.current_token and self.current_token['pattern'] == "ITZ":
+            self.advance()  # consume ITZ
+            initial_value = self.parse_expression()
+        
+        return {
+            'type': 'variable_declaration',
+            'identifier': identifier['pattern'],
+            'initial_value': initial_value
+        }
+
     def parse_output_statement(self):
         # visible
         self.error_handle("Output Keyword", "VISIBLE")
@@ -194,37 +189,7 @@ class Parser:
             'type': 'output_statement',
             'expressions': expressions
         }
-    
-    def parse_input_statement(self):
-        # handle input (will be used in the gui)
-        self.error_handle("Input Keyword", "GIMMEH")
-        
-        identifier = self.error_handle("Variable Identifier")
-        
-        return {
-            'type': 'input_statement',
-            'identifier': identifier['pattern']
-        }
 
-
-    def parse_variable_declaration(self):
-        self.error_handle("Variable Declaration", "I HAS A")
-
-        # handle identifiers
-        identifier = self.error_handle("Variable Identifier")
-
-        # optional assignment with ITZ
-        initial_value = None
-        if self.current_token and self.current_token['pattern'] == "ITZ":
-            self.error_handle("Variable Assignment", "ITZ")
-            initial_value = self.parse_expression()  # Use parse_expression instead of just literal
-        
-        return {
-            "type": "variable_declaration", 
-            "identifier": identifier['pattern'], 
-            "initial_value": initial_value
-        }
-    
     def parse_expression(self):
         # parse expressions with operator precedence
         return self.parse_logical_or()
@@ -273,6 +238,7 @@ class Parser:
 
     def parse_arithmetic(self):
         left = self.parse_term()
+
         while self.current_token and self.current_token['pattern'] in ["SUM OF", "DIFF OF"]:
             operator = self.current_token['pattern']
             self.advance()
@@ -284,7 +250,7 @@ class Parser:
                 'right': right
             }
         return left
-    
+
     def parse_term(self):
         left = self.parse_factor()
         while self.current_token and self.current_token['pattern'] in ["PRODUKT OF", "QUOSHUNT OF", "MOD OF"]:
@@ -298,7 +264,7 @@ class Parser:
                 'right': right
             }
         return left
-    
+
     def parse_factor(self):
         # basic expressions: literals, identifiers, and arithmetic operations
         if not self.current_token:
@@ -333,11 +299,11 @@ class Parser:
                 'value': value['pattern']
             }
         
-        # handle concatenation (added)
+        # Handle Concatenation (added)
         elif self.current_token['pattern'] == "SMOOSH":
             return self.parse_smoosh()
 
-        # handle type literals
+        # Handle type literals
         elif self.current_token['token_name'] == "Type Literal":
             value = self.current_token
             self.advance()
@@ -383,6 +349,31 @@ class Parser:
 
         else:
             self.error(f"Unexpected token: {self.current_token['pattern']}")
+
+    def parse_arithmetic_operation(self):
+        operator = self.current_token['pattern']
+        self.advance()  # consume operator
+        
+        # Parse first operand
+        operand1 = self.parse_expression()
+        if operand1 is None:
+            self.error(f"Expected expression after {operator}")
+        
+        # Expect AN
+        if self.current_token and self.current_token['pattern'] == "AN":
+            self.advance()  # consume AN
+        
+        # Parse second operand
+        operand2 = self.parse_expression()
+        if operand2 is None:  
+            self.error(f"Expected expression after AN in {operator}")
+        
+        return {
+            'type': 'arithmetic_operation',
+            'operator': operator,
+            'left': operand1,
+            'right': operand2
+        }
     
     def parse_comparison_operation(self):
         operator = self.current_token['pattern']
@@ -390,6 +381,8 @@ class Parser:
         
         # Parse first operand
         operand1 = self.parse_expression()
+        if operand1 is None:  
+            self.error(f"Expected expression after {operator}")
         
         # Expect AN
         if self.current_token and self.current_token['pattern'] == "AN":
@@ -397,46 +390,15 @@ class Parser:
         
         # Parse second operand
         operand2 = self.parse_expression()
+        if operand2 is None: 
+            self.error(f"Expected expression after AN in {operator}")
+
         
         return {
             'type': 'comparison_operation',
             'operator': operator,
-            'operand1': operand1,
-            'operand2': operand2
-        }
-    
-    def parse_arithmetic_operation(self):
-        operator = self.current_token['pattern']
-        self.advance()  # consume operator
-        
-        # Parse first operand
-        operand1 = self.parse_expression()
-        
-        # Expect AN
-        if self.current_token and self.current_token['pattern'] == "AN":
-            self.advance()  # consume AN
-        
-        # Parse second operand
-        operand2 = self.parse_expression()
-        
-        return {
-            'type': 'arithmetic_operation',
-            'operator': operator,
-            'operand1': operand1,
-            'operand2': operand2
-        }
-    
-    def parse_smoosh(self):
-        self.error_handle("String Concatenation", "SMOOSH")
-        parts = []
-        while self.current_token and self.current_token['pattern'] != "MKAY":
-            part = self.parse_expression()
-            if part:
-                parts.append(part)
-        self.error_handle("Argument End", "MKAY")
-        return {
-            'type': 'Concatenation',
-            'parts': parts
+            'left': operand1,
+            'right': operand2
         }
     
     def parse_conditional_statement(self):
@@ -536,7 +498,7 @@ class Parser:
         | <statement> <linebreak> <statement_block>
         """
         statements = []
-        # start_index = self.token_index
+        start_index = self.token_index
         
         while self.current_token and self.current_token['pattern'] != "KTHXBYE":
             # Check end keywords
@@ -551,6 +513,17 @@ class Parser:
                 self.advance()
         
         return statements
+    
+    def parse_input_statement(self):
+        """GIMMEH identifier"""
+        self.error_handle("Input Keyword", "GIMMEH")
+        
+        identifier = self.error_handle("Variable Identifier")
+        
+        return {
+            'type': 'input_statement',
+            'identifier': identifier['pattern']
+        }
     
     def parse_loop_statement(self):
         """<loop> ::= IM IN YR loopident <loop_condition> <linebreak> <statement_block> IM OUTTA YR loopident
@@ -614,20 +587,38 @@ class Parser:
 
     def parse_variable_assignment(self):
         """identifier R expression"""
-        # Store the identifier before advancing
-        identifier = self.current_token
+
+        identifier = self.current_token['pattern']
         self.advance()  # consume identifier
 
-        self.error_handle("Variable Assignment", "R")  # consume R
+        self.error_handle("Variable Assignment")  # consume R
 
         value = self.parse_expression()
 
         return {
             'type': 'variable_assignment',
-            'identifier': identifier['pattern'],
+            'identifier': identifier,
             'value': value
         }
     
+    def parse_smoosh(self):
+        """SMOOSH expression (AN expression)*"""
+        self.advance()  # consume SMOOSH
+        parts = []
+
+        # Parse first expression
+        parts.append(self.parse_expression())
+
+        # if theres more than one AN then parse those
+        while self.current_token and self.current_token['pattern'] == "AN":
+            self.advance()  # consume AN
+            parts.append(self.parse_expression())
+
+        return {
+            'type': 'smoosh',
+            'parts': parts
+        }
+
     def parse_typecast_isnow(self):
         """varident IS NOW A <literal>"""
         varident = self.current_token['pattern']
@@ -669,7 +660,7 @@ class Parser:
             'expression': expr,
             'convert_to_type': type_literal['pattern']
         }
-    
+
 def parse(filename):
     # main function for parsing
     try:
@@ -739,13 +730,13 @@ def print_ast(node, indent=0):
     
     elif node_type == 'arithmetic_operation':
         print(f"{prefix}Arithmetic Operation: {node['operator']}")
-        print_ast(node['operand1'], indent + 1)
-        print_ast(node['operand2'], indent + 1)
+        print_ast(node['left'], indent + 1)
+        print_ast(node['right'], indent + 1)
     
     elif node_type == 'comparison_operation':
         print(f"{prefix}Comparison Operation: {node['operator']}")
-        print_ast(node['operand1'], indent + 1)
-        print_ast(node['operand2'], indent + 1)
+        print_ast(node['left'], indent + 1)
+        print_ast(node['right'], indent + 1)
     
     elif node_type == 'logical_operation':
         print(f"{prefix}Logical Operation: {node['operator']}")
@@ -819,28 +810,11 @@ def print_ast(node, indent=0):
         print_ast(node['expression'], indent + 2)
         print(f"{prefix}  Convert To: {node['convert_to_type']}")
 
-    elif node_type == 'variable_assignment':
-        print(f"{prefix}Variable Assignment (R):")
-        print(f"{prefix}  Variable: {node['identifier']}")
-        print(f"{prefix}  Value:")
-        print_ast(node['value'], indent + 2)
-
-    elif node_type == 'variable_declaration':
-        if node['initial_value']:
-            print(f"{prefix}Variable Declaration (I HAS A): {node['identifier']} ITZ")
-            print_ast(node['initial_value'], indent + 1)
-        else:
-            print(f"{prefix}Variable Declaration (I HAS A): {node['identifier']}")
-
-    elif node_type == 'expression_statement':
-        print(f"{prefix}Expression Statement:")
-        print_ast(node['expression'], indent + 1)
-
     else:
         print(f"{prefix}Unknown node: {node}")
-    
+
 if __name__ == "__main__":
-    filename = "t1.lol"
+    filename = "smoosh_assign.lol"
     
     print("=" * 60)
     print(f"PARSING: {filename}")
@@ -852,11 +826,3 @@ if __name__ == "__main__":
         print_ast(ast)
     else:
         print("Failed to parse the program.")
-
-
-# if __name__ == "__main__":
-#     main_tokens = tokenizer("t1.lol")
-#     parser = Parser(main_tokens)
-#     parser.parse_program()
-#     for token in main_tokens:
-#         print(f"Line {token['line_number']}:Column {token['column_number']} {token['token_name']} {token['pattern']}")

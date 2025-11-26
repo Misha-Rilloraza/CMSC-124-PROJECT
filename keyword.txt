@@ -1,13 +1,13 @@
-\bHAI\b;Code Delimeter
-\bKTHXBYE\b;Code Delimeter
-\bWAZZUP\b;Variable List Delimeter
-\bBUHBYE\b;Variable List Delimeter
+\bHAI\b;Code Delimiter
+\bKTHXBYE\b;Code Delimiter
+\bWAZZUP\b;Variable List Delimiter
+\bBUHBYE\b;Variable List Delimiter
 \bBTW\b;Comment
 \bOBTW\b;Comment
 \bTLDR\b;Comment
 \bI\sHAS\sA\b;Variable Declaration
-\bITZ\b;Variable Assignment (following I HAS A)
-\bR\b;Variable Assignment
+\bITZ\b;Variable Assignment
+\bR\b;Variable Re-Assignment
 \bSUM\sOF\b;Arithmetic Operator
 \bDIFF\sOF\b;Arithmetic Operator
 \bPRODUKT\sOF\b;Arithmetic Operator
