@@ -1,0 +1,8 @@
+HAI
+WAZZUP
+I HAS A name ITZ "John"
+I HAS A age ITZ 25
+I HAS A height ITZ 5.9
+I HAS A num ITZ
+BUHBYE
+KTHXBYE

@@ -15,11 +15,12 @@ def tokenizer(filename):
 
     token_patterns.append((r"\b(?!WIN\b)(?!FAIL\b)(?!NOOB\b)(?!NUMBR\b)(?!NUMBAR\b)(?!YARN\b)(?!TROOF\b)(?!I\b)(?!HAS\b)(?!A\b)[A-Za-z][A-Za-z0-9_]*\b", "Variable Identifier"))
     token_patterns.append((r'"(?:[^"\\\r\n]|\\.)*"', "String Literal"))
+    token_patterns.append((r"\b[+-]?[0-9]*\.[0-9]+\b", "Float Literal"))
+    token_patterns.append((r"\b[+-]?[0-9]+\b", "Integer Literal"))
     token_patterns.append((r"\"", "String Delimiter"))
     token_patterns.append((r"\b(WIN|FAIL)\b", "Boolean Literal"))
     token_patterns.append((r"\b(NOOB|NUMBR|NUMBAR|YARN|TROOF)\b", "Type Literal"))
-    token_patterns.append((r"\b[+-]?[0-9]*\.[0-9]+\b", "Float Literal"))
-    token_patterns.append((r"\b[+-]?[0-9]+\b", "Integer Literal"))
+    
     # token_patterns.append((r"\b[a-zA-Z][a-zA-Z0-9_]*\b", "Variable Identifier"))
 
     # simpler regex combining
