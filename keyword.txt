@@ -34,7 +34,7 @@
 \bMEBBE\b;ElseIf Keyword
 \bNO\sWAI\b;Else Keyword
 \bOIC\b;If-Then-Else End
-\bWTF\?;Switch
+\bWTF?\b;Switch
 \bOMG\b;Comparison Statement
 \bOMGWTF\b;Default Comparison Statement
 \bIM\sIN\sYR\b;Start Loop Label

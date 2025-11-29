@@ -1,17 +1,9 @@
 from lexer import tokenizer
+from helper import extract_value, error, match, end_of_line
+from statements import *
+from conditions import *
 
-# this is a parser
-# this parser is a recursive descent parser
-# it will take the tokens from the lexer
-# top-down parsing
-# LL(1) parser
-# it will build a parse tree
-# then we will build an abstract syntax tree
-# then we will do semantic analysis
-# parse it line by line (parsed independently)
-# checks for proper pairing
-
-def parse(filename):
+def parse_whole(filename):
     try:
         tokens = tokenizer(filename)
         print(f"Tokenization complete. Found {len(tokens)} tokens.")
@@ -147,6 +139,10 @@ def parse_line(state):
         return parse_variable_declaration(state, in_var_declaration=True)
     elif current_token['token_name'] == "Variable Identifier":
         return parse_variable_assignment(state)
+    elif pattern_value == "VISIBLE":
+        return parse_output_statement(state)
+    elif pattern_value == "GIMMEH":
+        return parse_input_statement(state)
     else:
         error(state, f"Unexpected statement: '{pattern_value}'")
         return None
@@ -171,370 +167,34 @@ def parse_kthxbye(state):
         error(state, "Unexpected tokens after KTHXBYE.")
     return None
 
-def parse_variable_declaration_start(state):
-    # Parse WAZZUP
-    # start of variable declaration block
-    token = match(state, "Variable List Delimiter", "WAZZUP")
-    if token and end_of_line(state):
-        return {'node': 'variable_list_start', 'token': token}
-    elif not end_of_line(state):
-        error(state, "Unexpected tokens after WAZZUP")
-    return None
-
-def parse_variable_declaration_end(state):
-    # Parse BUHBYE
-    # end of variable declaration block
-    token = match(state, "Variable List Delimiter", "BUHBYE")
-    if token and end_of_line(state):
-        return {'node': 'variable_list_end', 'token': token}
-    elif not end_of_line(state):
-        error(state, "Unexpected tokens after BUHBYE")
-    return None
-
-def parse_variable_declaration(state, in_var_declaration):
-    # Parse the variable declarations
-    # preceding I HAS A <varname>
-    # Optional assignment: I HAS A <varname> ITZ <value>
-    i_has_a = match(state, "Variable Declaration", "I HAS A")
-    if not i_has_a:
-        error(state, "Expected 'I HAS A' for variable declaration")
-        return None
+# def check_conditionals(token):
+#     # Check if line starts with conditonal expression
+#     # comparison
+#     if token['pattern'] in ["BOTH SAEM", "DIFFRINT", "BIGGR OF", "SMALLR OF"]:
+#         return True
+#     # logical
+#     if token['pattern'] in ["BOTH OF", "EITHER OF", "WON OF", "ALL OF", "ANY OF", "NOT"]:
+#         return True
+#     # arithmetic
+#     if token['pattern'] in ["SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF"]:
+#         return True
+#     # boolean
+#     if token['token_name'] == "Boolean Literal":
+#         return True
+#     # type
+#     if token['token_name'] == "Type Literal":
+#         return True
+#     # stirng
+#     if token['token_name'] == "String Literal":
+#         return True
+#     # numbers
+#     if token['token_name'] in ["Integer Literal", "Float Literal"]:
+#         return True
+#     # variable identifiers
+#     if token['token_name'] == "Variable Identifier":
+#         return True
     
-    var_identifier = match(state, "Variable Identifier")
-    if not var_identifier:
-        error(state, "Expected variable identifier after 'I HAS A'")
-        return None
-    
-    # Optional assignmen
-    assignment = None
-    if state['current_token'] and state['current_token']['pattern'] == 'ITZ':
-        itz_token = match(state, "Variable Assignment", "ITZ")
-        if itz_token:
-            assignment = parse_expression(state)
-            if not assignment:
-                error(state, "Expected expression after 'ITZ'")
-                return None
-    
-    # if end_of_line(state):
-    #     error(state, "Unexpected tokens after variable declaration")
-    #     return None
-
-    if not end_of_line(state):
-        error(state, f"Unexpected tokens after variable declaration: {state['current_token']['pattern'] if state['current_token'] else 'EOF'}")
-        return None
-    
-    result = {
-        'node': 'variable_declaration',
-        'identifier': var_identifier['pattern'],
-        'assignment': assignment,
-        'in_var_declaration': in_var_declaration
-    }
-
-    return result
-
-def parse_variable_assignment(state):
-    # Parse variable assignment
-    # Consider ITZ for variable assignment
-    # Consider R for variable reassignment
-    # expressions/values could be any literals
-    var_identifier = match(state, "Variable Identifier")
-    if not var_identifier:
-        return None
-    
-    if state['current_token'] and state['current_token']['pattern'] == 'R':
-        assign_token = match(state, "Variable Reassignment", "R")
-        operator = 'reassignment'
-        expression = parse_expression(state)
-        if not expression:
-            error(state, "Expected expression after 'R'")
-            return None
-    elif state['current_token'] and state['current_token']['pattern'] == 'ITZ':
-        assign_token = match(state, "Variable Assignment", "ITZ")
-        operator = 'assignment'
-        expression = parse_expression(state)
-        if not expression:
-            error(state, "Expected expression after 'ITZ'")
-            return None
-    else:
-        return None
-    
-    expr = parse_expression(state)
-    if not expr:
-        error(state, "Expected expression after assignment operator")
-        return None
-    
-    if not end_of_line(state):
-        error(state, "Unexpected tokens after assignment")
-        return None
-    
-    result = {
-        'node': 'variable_assignment',
-        'identifier': var_identifier['pattern'],
-        'operator': operator,
-        'expression': expr
-    }
-    return result
-
-def parse_expression(state):
-    # be mindful of operator precedence
-    return parse_logical_or(state)
-
-def parse_logical_or(state):
-    left = parse_logical_xor(state)
-    if not left:
-        return None
-    while state['current_token'] and state['current_token']['pattern'] in ["ANY OF", "EITHER OF"]:
-        operator_token = match(state, "Logical Operator", state['current_token']['pattern'])
-        right = parse_logical_xor(state)
-        if not right:
-            return None
-        left = {
-            'node': 'logical_operation',
-            'operator': operator_token['pattern'],
-            'left': left,
-            'right': right
-        }
-    return left
-    
-def parse_logical_xor(state):
-    left = parse_logical_and(state)
-    if not left:
-        return None
-    while state['current_token'] and state['current_token']['pattern'] == "WON OF":
-        operator_token = match(state, "Logical Operator", "WON OF")
-        right = parse_logical_and(state)
-        if not right:
-            return None
-        left = {
-            'node': 'logical_operation',
-            'operator': operator_token['pattern'],
-            'left': left,
-            'right': right
-        }
-    return left
-    
-def parse_logical_and(state):
-    left = parse_comparison(state)
-    if not left:
-        return None
-    while state['current_token'] and state['current_token']['pattern'] in ["BOTH OF", "ALL OF"]:
-        operator_token = match(state, "Logical Operator", state['current_token']['pattern'])
-        right = parse_comparison(state)
-        if not right:
-            return None
-        left = {
-            'node': 'logical_operation',
-            'operator': operator_token['pattern'],
-            'left': left,
-            'right': right
-        }
-    return left
-    
-def parse_comparison(state):
-    left = parse_arithmetic(state)
-    if not left:
-        return None
-    while state['current_token'] and state['current_token']['pattern'] in ["BIGGR OF", "SMALLR OF", "BOTH SAEM", "DIFFRINT"]:
-        operator_token = state['current_token']['pattern']
-        advance(state)
-        right = parse_arithmetic(state)
-        if not right:
-            return None
-        left = {
-            'node': 'comparison_operation',
-            'operator': operator_token['pattern'],
-            'left': left,
-            'right': right
-        }
-    return left
-    
-def parse_arithmetic(state):
-    left = parse_term(state)
-    if not left:
-        return None
-    while state['current_token'] and state['current_token']['pattern'] in ["SUM OF", "DIFF OF"]:
-        operator_token = state['current_token']['pattern']
-        advance(state)
-        right = parse_term(state)
-        if not right:
-            return None
-        left = {
-            'node': 'arithmetic_operation',
-            'operator': operator_token['pattern'],
-            'left': left,
-            'right': right
-        }
-    return left
-    
-def parse_term(state):
-    left = parse_factor(state)
-    if not left:
-        return None
-    while state['current_token'] and state['current_token']['pattern'] in ["PRODUKT OF", "QUOSHUNT OF", "MOD OF"]:
-        operator_token = state['current_token']['pattern']
-        advance(state)
-        right = parse_factor(state)
-        if not right:
-            return None
-        left = {
-            'node': 'arithmetic_operation',
-            'operator': operator_token['pattern'],
-            'left': left,
-            'right': right
-        }
-    return left
-    
-def parse_factor(state):
-    if not state['current_token']:
-        error(state, "Unexpected end of line in expression")
-        return None
-    
-    if state['current_token']['pattern'] in ["BIGGR OF", "SMALLR OF", "BOTH SAEM", "DIFFRINT"]:
-        return parse_comparison_expression(state)
-    elif state['current_token']['pattern'] in ["SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF"]:
-        return parse_arithmetic_expression(state)
-    elif state['current_token']['token_name'] in ["Variable Identifier", "String Literal", "Boolean Literal", "Type Literal", "Float Literal", "Integer Literal"]:
-        return parse_simple_expression(state)
-    else:
-        error(state, f"Unexpected token in expression: {state['current_token']['pattern']}")
-        return None
-    
-def parse_comparison_expression(state):
-    # Parse comparison
-    # expr ::= BIGGR OF | SMALLR OF | BOTH SAEM | DIFFRINT
-    operator_token = match(state, "Comparison Operator")
-
-    operand1 = parse_factor(state)
-
-    if state['current_token'] and state['current_token']['pattern'] == 'AN':
-        advance(state)
-    else:
-        error(state, "Expected 'AN' between operands")
-        return None
-
-    operand2 = parse_factor(state)
-
-    operand1_value = extract_value(operand1)
-    operand2_value = extract_value(operand2)
-
-    expression_extracted = f"{operator_token['pattern']} {operand1_value} AN {operand2_value}"
-
-    results = {
-        'node': 'comparison_expression',
-        'operator': operator_token['pattern'],
-        'operand1': operand1,
-        'operand2': operand2,
-        'values': expression_extracted
-    }
-    return results
-
-def parse_arithmetic_expression(state):
-    # Parse arithmetic
-    # expr ::= SUM OF | DIFF OF | PRODUKT OF | QUOSHUNT OF | MOD OF
-    operator_token = match(state, "Arithmetic Operator")
-    
-    operand1 = parse_factor(state)
-
-    if state['current_token'] and state['current_token']['pattern'] == 'AN':
-        advance(state)
-    else:
-        error(state, "Expected 'AN' between operands")
-        return None
-
-    operand2 = parse_factor(state)
-
-    operand1_value = extract_value(operand1)
-    operand2_value = extract_value(operand2)
-
-    expression_extracted = f"{operator_token['pattern']} {operand1_value} AN {operand2_value}"
-
-    results = {
-        'node': 'arithmetic_expression',
-        'operator': operator_token['pattern'],
-        'operand1': operand1,
-        'operand2': operand2,
-        'values': expression_extracted
-    }
-    return results
-
-def extract_value(node):
-    if node['node'] in ['identifier', 'string_literal', 'boolean_literal', 'type_literal', 'float_literal', 'integer_literal']:
-        return node['value']
-    return None
-
-def parse_simple_expression(state):
-    # Parse identifiers and literals
-    current_token = state['current_token']
-
-    if current_token['token_name'] == 'Variable Identifier':
-        advance(state)
-        return {'node': 'identifier', 'value': current_token['pattern']}
-    elif current_token['token_name'] == 'String Literal':
-        advance(state)
-        return {'node': 'string_literal', 'value': current_token['pattern']}
-    elif current_token['token_name'] == 'Boolean Literal':
-        advance(state)
-        return {'node': 'boolean_literal', 'value': current_token['pattern']}
-    elif current_token['token_name'] == 'Type Literal':
-        advance(state)
-        return {'node': 'type_literal', 'value': current_token['pattern']}
-    elif current_token['token_name'] == 'Float Literal':
-        advance(state)
-        return {'node': 'float_literal', 'value': current_token['pattern']}
-    elif current_token['token_name'] == 'Integer Literal':
-        advance(state)
-        return {'node': 'integer_literal', 'value': current_token['pattern']}
-    else:
-        error(state, f"Unexpected expression: '{current_token['pattern']}'")
-        return None
-
-def error(state, message):
-    state['errors'].append(message)
-    print(f"Error on line {state['line_no']}: {message}")
-
-def match(state, expected_token, expected_value=None):
-    current_token = state['current_token']
-    if current_token and current_token['token_name'] == expected_token:
-        if expected_value is None or current_token['pattern'] == expected_value:
-            print(f"Matched token: '{current_token['pattern']}' (type: {current_token['token_name']})")
-            state['position'] += 1
-            if state['position'] < len(state['tokens']):
-                state['current_token'] = state['tokens'][state['position']]
-            else:
-                state['current_token'] = None
-            return current_token
-    return None
-
-def advance(state):
-    state['position'] += 1
-    if state['position'] < len(state['tokens']):
-        state['current_token'] = state['tokens'][state['position']]
-    else:
-        state['current_token'] = None
-
-def end_of_line(state):
-    return state['current_token'] is None
-
-# def print_results(parse_tree, errors):
-#     print("\n" + "="*50)
-#     print("PARSING RESULTS")
-#     print("="*50)
-
-#     if errors:
-#         print("\n❌ ERRORS:")
-#         for error in errors:
-#             print(f"  {error}")
-#     else:
-#         print("\n✅ No parsing errors found!")
-
-#     print(f"\n📋 Parsed {len(parse_tree)} lines:")
-#     for line_data in parse_tree:
-#         line_no = line_data['line_number']
-#         result = line_data['parse_result']
-#         tokens = [t['pattern'] for t in line_data['tokens']]
-
-#         print(f"\nLine {line_no}: {tokens}")
-#         print(f"  Node: {result['node']}")
+#     return False
 
 def print_results(parse_tree, errors):
     print("\n" + "="*60)
@@ -548,31 +208,71 @@ def print_results(parse_tree, errors):
     else:
         print("\n✅ No parsing errors found!")
 
+    if not parse_tree:
+        print("❌ No parse tree to display!")
+        return
+
     print(f"\n📊 Parsed ({len(parse_tree)} lines):")
     for line_data in parse_tree:
-        line_no = line_data['line_number']
-        result = line_data['parse_result']
+        line_no = line_data.get('line_number', 'unknown')
+        result = line_data.get('parse_result', {})
 
         print(f"\nLine {line_no}: ", end="")
 
         # print tokens in a list format
-        # indicate structure
-        tokens = [t['pattern'] for t in line_data['tokens']]
+        tokens = [t['pattern'] for t in line_data.get('tokens', [])]
         print(f"{tokens}")
-        print(f"  └─ {result['node']}")
+        
+        node_type = result.get('node', 'unknown')
+        print(f"  └─ {node_type}")
+
+        # starting from the top
+        if node_type == 'start_of_program':
+            print("-- HAI (start of program)")
+        elif node_type == 'end_of_program':
+            print("-- KTHXBYE (end of program)")
+        elif node_type == 'variable_list_start':
+            print("-- WAZZUP (start of vardecl block)")
+        elif node_type == 'variable_list_end':
+            print("-- BUHBYE (end of vardecl block)")
 
         # details of the variable declarations and assignments if yes
-        if result['node'] == 'variable_declaration':
-            print(f" - {result['identifier']}", end="")
+        elif node_type == 'variable_declaration':
+            identifier = result.get('identifier', 'unknown')
+            print(f" - {identifier}", end="")
             if result.get('assignment'):
                 assign = result['assignment']
+                assign_type = assign.get('node', 'unknown')
                 value = assign.get('value', assign.get('name', ''))
-                print(f" = {assign['node']}: '{value}'")
-                if assign['node'] == 'arithmetic_expression' and 'values' in assign:
-                    print(f"\t^--Extracted Expression: {assign['values']}")
+                print(f" = {assign_type}: '{value}'")
             else:
                 print(" (no assignment)")
+        
+        # for the output statement nodes
+        elif node_type == 'output_statement':
+            print(f" - VISIBLE expressions:")
+            expressions = result.get('expressions', [])
+            print(f"DEBUG: Found {len(expressions)} expressions")
+            for i, expr in enumerate(expressions):
+                expr_string = extract_value(expr)
+                expr_type = expr.get('node', 'expression')
+                print(f"       [{i+1}] {expr_type}: '{expr_string}'")
+        
+        elif node_type == 'input_statement':
+            identifier = result.get('identifier', 'unknown')
+            print(f" - GIMMEH: '{identifier}'")
+        
+        # variable assignment detauils
+        elif node_type == 'variable_assignment':
+            identifier = result.get('identifier', 'unknown')
+            operator = result.get('operator', 'unknown')
+            expr_string = extract_value(result.get('expression', {}))
+            expr_type = result.get('expression', {}).get('node', 'unknown')
+            print(f" - {identifier} {operator} {expr_type}: '{expr_string}'")
+        
+        else:
+            print(f" - [Unhandled node type: {node_type}]")
 
-if __name__ == "__main__":
-    parse_tree, errors = parse("t1.lol")
-    print_results(parse_tree, errors)
+# if __name__ == "__main__":
+#     parse_tree, errors = parse("t1.lol")
+#     print_results(parse_tree, errors)
