@@ -10,4 +10,4 @@ def parse(filename):
     }
 
 if __name__ == "__main__":
-    result = parse("t1.lol")
+    result = parse("ifelse.lol")

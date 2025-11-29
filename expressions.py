@@ -56,6 +56,11 @@ def parse_logical_and(state):
     return left
     
 def parse_comparison(state):
+    # can be at the beginning
+    if state['current_token'] and state['current_token']['pattern'] in ["BIGGR OF", "SMALLR OF", "BOTH SAEM", "DIFFRINT"]:
+        return parse_comparison_expression(state)
+    
+    # for expressions that have this in the middle
     left = parse_arithmetic(state)
     if not left:
         return None

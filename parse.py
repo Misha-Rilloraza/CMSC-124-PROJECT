@@ -143,6 +143,22 @@ def parse_line(state):
         return parse_output_statement(state)
     elif pattern_value == "GIMMEH":
         return parse_input_statement(state)
+    elif pattern_value == "O RLY?":
+        return parse_if_statement_start(state)
+    elif pattern_value == "YA RLY":
+        return parse_then_statement(state)
+    elif pattern_value == "MEBBE":
+        return parse_elseif_statement(state)
+    elif pattern_value == "NO WAI":
+        return parse_else_statement(state)
+    elif pattern_value == "OIC":
+        return parse_if_end(state)
+    elif pattern_value == "WTF?":
+        return parse_switch_start(state)
+    elif pattern_value == "OMG":
+        return parse_switch_cases(state)
+    elif pattern_value == "OMGWTF":
+        return parse_switch_end(state)
     else:
         error(state, f"Unexpected statement: '{pattern_value}'")
         return None
@@ -269,6 +285,41 @@ def print_results(parse_tree, errors):
             expr_string = extract_value(result.get('expression', {}))
             expr_type = result.get('expression', {}).get('node', 'unknown')
             print(f" - {identifier} {operator} {expr_type}: '{expr_string}'")
+
+        # conditionals
+        elif result['node'] == 'if_statement_start':
+            print(f" - IF statement begins")
+        
+        elif result['node'] == 'then_statement':
+            print(f" - THEN branch begins")
+        
+        elif result['node'] == 'else_if_statement':
+            condition_string = extract_value(result['condition'])
+            print(f" - ELSE IF branch begins")
+            print(f"       Condition: {result['condition']['node']}: '{condition_string}'")
+        
+        elif result['node'] == 'else_statement':
+            print(f" - ELSE branch begins")
+        
+        elif result['node'] == 'if_statement_end':
+            print(f" - IF statement ends")
+        
+        # switch statements
+        elif result['node'] == 'switch_start':
+            expr_string = extract_value(result['expression'])
+            print(f" - SWITCH statement begins")
+            print(f"       Expression: {result['expression']['node']}: '{expr_string}'")
+        
+        elif result['node'] == 'switch_case':
+            case_string = extract_value(result['case_value'])
+            print(f" - CASE branch begins")
+            print(f"       Case value: {result['case_value']['node']}: '{case_string}'")
+        
+        elif result['node'] == 'default_case':
+            print(f" - DEFAULT branch begins")
+        
+        elif result['node'] == 'switch_end':
+            print(f" - SWITCH statement ends")
         
         else:
             print(f" - [Unhandled node type: {node_type}]")

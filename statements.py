@@ -43,7 +43,7 @@ def parse_input_statement(state):
     
     return {
         'node': 'input_statement',
-        'identifier': var_identifier['patterm']
+        'identifier': var_identifier['pattern']
     }
 
 def parse_variable_declaration_start(state):
