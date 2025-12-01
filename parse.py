@@ -138,11 +138,27 @@ def parse_line(state):
     elif pattern_value == "I HAS A":
         return parse_variable_declaration(state, in_var_declaration=True)
     elif current_token['token_name'] == "Variable Identifier":
-        return parse_variable_assignment(state)
+        # return parse_variable_assignment(state)
+        if len(state['tokens']) > 1:
+            next_token = state['tokens'][1]['pattern']
+            if next_token == 'R' or next_token == 'ITZ':
+                return parse_variable_assignment(state)
+            elif next_token == 'IS NOW A':
+                return parse_is_now_a_type_cast(state)
+            else:
+                # this is to handle cases where variable reference is not alone
+                return parse_variable_reference(state)
+        else:
+            # we parse as variable reference if single token
+            return parse_variable_reference(state)
     elif pattern_value == "VISIBLE":
         return parse_output_statement(state)
     elif pattern_value == "GIMMEH":
         return parse_input_statement(state)
+    elif pattern_value == "SMOOSH":
+        return parse_smoosh(state)
+    elif pattern_value == "MAEK":
+        return parse_type_casting(state)
     elif pattern_value == "O RLY?":
         return parse_if_statement_start(state)
     elif pattern_value == "YA RLY":
@@ -159,6 +175,19 @@ def parse_line(state):
         return parse_switch_cases(state)
     elif pattern_value == "OMGWTF":
         return parse_switch_end(state)
+    # for expressions as standalone statements
+    # most likely that appears in the beginning as well
+    elif pattern_value in ["BOTH SAEM", "DIFFRINT", "BIGGR OF", "SMALLR OF", 
+                       "BOTH OF", "EITHER OF", "WON OF", "ALL OF", "ANY OF",
+                       "SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF",
+                       "NOT", "SMOOSH", "MAEK"]:
+        from expressions import parse_expression
+        expr = parse_expression(state)
+        if expr and end_of_line(state):
+            return {
+                'node': 'expression_statement',
+                'expression': expr
+            }
     else:
         error(state, f"Unexpected statement: '{pattern_value}'")
         return None
@@ -217,13 +246,6 @@ def print_results(parse_tree, errors):
     print("PARSING RESULTS")
     print("="*60)
 
-    if errors:
-        print("\n❌ ERRORS:")
-        for error in errors:
-            print(f"  {error}")
-    else:
-        print("\n✅ No parsing errors found!")
-
     if not parse_tree:
         print("❌ No parse tree to display!")
         return
@@ -265,26 +287,74 @@ def print_results(parse_tree, errors):
                 print(" (no assignment)")
         
         # for the output statement nodes
+        # can be expressions
+        # can be variable identifiers
+        # can be literals
         elif node_type == 'output_statement':
-            print(f" - VISIBLE expressions:")
-            expressions = result.get('expressions', [])
-            print(f"DEBUG: Found {len(expressions)} expressions")
-            for i, expr in enumerate(expressions):
+            if 'expressions' in result:
+                expressions = result.get('expressions', [])
+                if len(expressions) == 1:
+                    expr = expressions[0]
+                    expr_string = extract_value(expr)
+                    expr_type = expr.get('node', 'unknown')
+                    print(f" - VISIBLE: {expr_type}: '{expr_string}'")
+                else:
+                    for expr in expressions:
+                        expr_string = extract_value(expr)
+                        expr_type = expr.get('node', 'unknown')
+                        print(f"     - {expr_type}: '{expr_string}'")
+            elif 'expression' in result:
+                expr = result.get('expression', {})
                 expr_string = extract_value(expr)
-                expr_type = expr.get('node', 'expression')
-                print(f"       [{i+1}] {expr_type}: '{expr_string}'")
+                expr_type = expr.get('node', 'unknown')
+                print(f" - VISIBLE: {expr_type}: '{expr_string}'")
+            else:
+                print(f" - VISIBLE (no expression details)")
         
         elif node_type == 'input_statement':
             identifier = result.get('identifier', 'unknown')
             print(f" - GIMMEH: '{identifier}'")
         
         # variable assignment detauils
+        # handle assignment and reassignment
         elif node_type == 'variable_assignment':
             identifier = result.get('identifier', 'unknown')
-            operator = result.get('operator', 'unknown')
+            operator = result.get('used_operator', result.get('operator', 'unknown'))
+            expr_string = result.get('expression_string', extract_value(result.get('expression', {})))
+            expr_type = result.get('expression_type', 'expression')
+            print(f" - {identifier} {operator} {expr_type}: '{expr_string}'")
+            
+
+        elif node_type == 'variable_reference':
+            identifier = result.get('identifier', 'unknown')
+            print(f" - Variable Reference: '{identifier}'")
+
+        # elif node_type == 'variable_assignment':
+        #     identifier = result.get('identifier', 'unknown')
+        #     operator = result.get('operator', 'unknown')
+        #     expr_string = extract_value(result.get('expression', {}))
+        #     expr_type = result.get('expression', {}).get('node', 'unknown')
+        #     print(f" - {identifier} {operator} {expr_type}: '{expr_string}'")
+
+        # for the expression details
+        elif node_type == 'expression_statement':
+            expr = result.get('expression', {})
+            expr_string = extract_value(expr)
+            expr_type = expr.get('node', 'unknown')
+            print(f" - Expression: {expr_type}: '{expr_string}'")
+
+        # smoosh details
+        elif node_type == 'smoosh_expression':
+            parts = result.get('parts', [])
+            part_strings = [extract_value(part) for part in parts]
+            print(f" - SMOOSH parts: {part_strings}")
+
+        # type casting details
+        elif node_type == 'type_casting':
+            target_type = result.get('target_type', 'unknown')
             expr_string = extract_value(result.get('expression', {}))
             expr_type = result.get('expression', {}).get('node', 'unknown')
-            print(f" - {identifier} {operator} {expr_type}: '{expr_string}'")
+            print(f" - MAEK to {target_type}: {expr_type}: '{expr_string}'")
 
         # conditionals
         elif result['node'] == 'if_statement_start':
@@ -323,6 +393,14 @@ def print_results(parse_tree, errors):
         
         else:
             print(f" - [Unhandled node type: {node_type}]")
+
+    if errors:
+        print("\n❌ ERRORS:")
+        for error in errors:
+            print(f"  {error}")
+    else:
+        print("\n✅ No parsing errors found!")    
+
 
 # if __name__ == "__main__":
 #     parse_tree, errors = parse("t1.lol")

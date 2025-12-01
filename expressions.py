@@ -1,4 +1,4 @@
-from helper import extract_value, error, match, advance
+from helper import extract_value, error, match, advance, end_of_line
 
 def parse_expression(state):
     # be mindful of operator precedence
@@ -127,6 +127,15 @@ def parse_factor(state):
         return parse_arithmetic_expression(state)
     elif state['current_token']['token_name'] in ["Variable Identifier", "String Literal", "Boolean Literal", "Type Literal", "Float Literal", "Integer Literal"]:
         return parse_simple_expression(state)
+    elif state['current_token']['pattern'] == "SMOOSH":
+        return parse_smoosh(state)
+    # elif state['current_token']['pattern'] == "MAEK" or (state['current_token']['token_name'] != "Variable Identifier" and state['current_token']['pattern'] == "IS NOW A"):
+    #     return parse_type_casting(state)
+    elif state['current_token']['pattern'] == "MAEK":
+        return parse_explicit_type_cast(state)
+    elif state['current_token']['pattern'] == "Variable Identifier":
+        if state['current_token'] and state['current_token']['pattern'] == "IS NOW A":
+            return parse_is_now_a_type_cast(state)
     else:
         error(state, f"Unexpected token in expression: {state['current_token']['pattern']}")
         return None
@@ -155,7 +164,7 @@ def parse_comparison_expression(state):
     # expr ::= BIGGR OF | SMALLR OF | BOTH SAEM | DIFFRINT
     operator_token = match(state, "Comparison Operator")
 
-    operand1 = parse_factor(state)
+    operand1 = parse_arithmetic(state)
 
     if state['current_token'] and state['current_token']['pattern'] == 'AN':
         advance(state)
@@ -163,7 +172,7 @@ def parse_comparison_expression(state):
         error(state, "Expected 'AN' between operands")
         return None
 
-    operand2 = parse_factor(state)
+    operand2 = parse_arithmetic(state)
 
     operand1_value = extract_value(operand1)
     operand2_value = extract_value(operand2)
@@ -233,3 +242,109 @@ def parse_simple_expression(state):
     else:
         error(state, f"Unexpected expression: '{current_token['pattern']}'")
         return None
+    
+def parse_smoosh(state):
+    # Parse SMOOSH
+    operator_token = match(state, "String Concatenation", "SMOOSH")
+    if not operator_token:
+        return None
+    
+    strings = []
+    while True:
+        string_expr = parse_simple_expression(state)
+        if not string_expr:
+            error(state, "Expected string in SMOOSH")
+            return None
+        strings.append(string_expr)
+
+        if state['current_token'] and state['current_token']['pattern'] == "AN":
+            advance(state)
+        else:
+            break
+
+        if not state['current_token']:
+            error(state, "Unexpected end of line in SMOOSH")
+            return None
+    
+    if len(strings) < 2:
+        error(state, "SMOOSH requires at least two strings")
+        return None
+    
+    results = {
+        'node': 'smoosh_expression',
+        'strings': strings,
+        'token': operator_token
+    }
+    return results
+
+def parse_type_casting(state):
+    # tokens used: MAEK <expr> A <literal>
+    # another way of type casting: IS NOW A
+    # be mindful of both
+    if state['current_token'] and state['current_token']['pattern'] == "MAEK":
+        return parse_explicit_type_cast(state)
+    else:
+        return parse_is_now_a_type_cast(state)
+    
+
+def parse_explicit_type_cast(state):
+    # Parse MAEK ... A ...
+    operator_token = match(state, "Type Casting", "MAEK")
+    if not operator_token:
+        return None
+    
+    expr = parse_expression(state)
+    if not expr:
+        error(state, "Expected expression after MAEK")
+        return None
+    
+    a_token = match(state, "Type Casting Keyword", "A")
+    if not a_token:
+        error(state, "Expected 'A' after expression for type casting")
+        return None
+    
+    type_literal = match(state, ['integer_literal', 'float_literal', 'string_literal', 'boolean_literal', 'type_literal'])
+    if not type_literal:
+        error(state, "Expected type literal after 'A' for type casting")
+        return None
+    
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after type casting")
+        return None
+    
+    results = {
+        'node': 'type_casting',
+        'expression': expr,
+        'target_type': type_literal['pattern'],
+        'token': operator_token
+    }
+    return results
+
+def parse_is_now_a_type_cast(state):
+    # Parse ... IS NOW A ...
+    expr = parse_expression(state)
+    if not expr:
+        error(state, "Expected expression before 'IS NOW A'")
+        return None
+        
+    is_NOW_A_token = match(state, "Recast Variable", "IS NOW A")
+    if not is_NOW_A_token:
+        error(state, "Expected 'IS NOW A' for type casting")
+        return None
+    
+    type_literal = match(state, ['integer_literal', 'float_literal', 'string_literal', 'boolean_literal', 'type_literal'])
+    if not type_literal:
+        error(state, "Expected type literal after 'IS NOW A' for type casting")
+        return None
+    
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after type casting")
+        return None
+    
+    results = {
+        'node': 'recast_typing',
+        'expression': expr,
+        'target_type': type_literal['pattern'],
+        'token': is_NOW_A_token
+    }
+    return results

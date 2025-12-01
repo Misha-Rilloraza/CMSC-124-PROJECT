@@ -1,4 +1,4 @@
-from helper import error, match, end_of_line
+from helper import extract_value, error, match, advance, end_of_line
 from expressions import parse_expression
 
 def parse_output_statement(state):
@@ -9,16 +9,25 @@ def parse_output_statement(state):
         error(state, "Expected 'VISBLE' for output statement")
         return None
     
+    # statements following VISIBLE can be expressions or literals
     expressions = []
-    while state['current_token'] and not end_of_line(state):
-        expr = parse_expression(state)
-        if expr:
-            expressions.append(expr)
-        else:
-            error(state, "Expected expression after 'VISIBLE'")
+    expr = parse_expression(state)
+    if not expr:
+        error(state, "Expected expression after 'VISIBLE'")
+        return None
+    expressions.append(expr)
 
-    if not expressions:
-        error(state, "'VISIBLE' requires an expression to output")
+    # for multiple expressions
+    while state['current_token'] and state['current_token']['pattern'] == 'AN':
+        advance(state)  # consume 'AN'
+        expr = parse_expression(state)
+        if not expr:
+            error(state, "Expected expression after 'AN'")
+            return None
+        expressions.append(expr)
+    
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after output statement")
         return None
     
     return {
@@ -119,24 +128,36 @@ def parse_variable_assignment(state):
     if state['current_token'] and state['current_token']['pattern'] == 'R':
         assign_token = match(state, "Variable Reassignment", "R")
         operator = 'reassignment'
-        expression = parse_expression(state)
-        if not expression:
-            error(state, "Expected expression after 'R'")
-            return None
+        used_operator = 'R'
+        # expression = parse_expression(state)
+        # if not expression:
+        #     error(state, "Expected expression after 'R'")
+        #     return None
     elif state['current_token'] and state['current_token']['pattern'] == 'ITZ':
         assign_token = match(state, "Variable Assignment", "ITZ")
         operator = 'assignment'
-        expression = parse_expression(state)
-        if not expression:
-            error(state, "Expected expression after 'ITZ'")
-            return None
+        used_operator = 'ITZ'
+        # expression = parse_expression(state)
+        # if not expression:
+        #     error(state, "Expected expression after 'ITZ'")
+        #     return None
     else:
-        return None
+        if end_of_line(state):
+            result = {
+                'node': 'variable_reference',
+                'identifier': var_identifier['pattern']
+            }
+        else:
+            error(state, "Expected 'R' or 'ITZ' for variable assignment")
+            return None
     
     expr = parse_expression(state)
     if not expr:
         error(state, "Expected expression after assignment operator")
         return None
+    
+    expr_string = extract_value(expr)
+    expr_type = expr.get('node', 'unknown')
     
     if not end_of_line(state):
         error(state, "Unexpected tokens after assignment")
@@ -146,6 +167,26 @@ def parse_variable_assignment(state):
         'node': 'variable_assignment',
         'identifier': var_identifier['pattern'],
         'operator': operator,
-        'expression': expr
+        'used_operator': used_operator,
+        'expression': expr,
+        'expression_string': expr_string,
+        'expression_type': expr_type
+    }
+    return result
+
+def parse_variable_reference(state):
+    # this function parses variable references
+    # variable references are just variable identifiers used in expressions
+    var_identifier = match(state, "Variable Identifier")
+    if not var_identifier:
+        return None
+    
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after variable reference")
+        return None
+    
+    result = {
+        'node': 'variable_reference',
+        'identifier': var_identifier['pattern']
     }
     return result

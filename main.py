@@ -1,5 +1,6 @@
 from lexer import tokenizer
-from parser import parse, print_ast
+# from parser import parse
+from parse import parse_whole, print_results
 import sys
 
 def main():
@@ -18,9 +19,10 @@ def main():
         # Step 2: Syntax Analysis
         print("\n2. SYNTAX ANALYSIS (Parsing):")
         print("-" * 40)
-        ast = parse(filename)
-        if ast:
-            print_ast(ast)
+        parse_tree, errors = parse_whole(filename)
+        if parse_tree:
+            # print("Parsing succeeded with no errors.")
+            print_results(parse_tree, errors)
         else:
             print("Parsing failed.")
             
