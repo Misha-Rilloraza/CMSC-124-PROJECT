@@ -16,6 +16,13 @@ def parse_output_statement(state):
             expressions.append(expr)
         else:
             error(state, "Expected expression after 'VISIBLE'")
+            break
+        
+        # Check for + separator (VISIBLE concatenation)
+        if state['current_token'] and state['current_token']['pattern'] == '+':
+            match(state, "Concatenation Operator", "+")
+        else:
+            break
 
     if not expressions:
         error(state, "'VISIBLE' requires an expression to output")

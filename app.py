@@ -297,7 +297,7 @@ def evaluate_arithmetic_expr(expr, symbol_table, errors=None, line_no=None):
         if num2 == 0:
             errors.append(f"Line {line_no}: Semantic error: division by zero")
             return 0
-        return num1 / num2
+        return int(num1 // num2)
     elif operator == 'MOD OF':
         if num2 == 0:
             errors.append(f"Line {line_no}: Semantic error: modulo by zero")

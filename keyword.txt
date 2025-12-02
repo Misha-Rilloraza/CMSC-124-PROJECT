@@ -29,6 +29,7 @@
 \bIS\sNOW\sA\b;Recast Variable
 \bVISIBLE\b;Output Keyword
 \bGIMMEH\b;Input Keyword
+\+;Concatenation Operator
 \bO\sRLY\?;If Keyword
 \bYA\sRLY\b;Then Keyword
 \bMEBBE\b;ElseIf Keyword
