@@ -1,6 +1,8 @@
 from helper import extract_value, error, match, advance, end_of_line
 from expressions import parse_expression
 
+in_variable_block = False
+
 def parse_output_statement(state):
     # Parse VISIBLE
     # for displaying output
@@ -58,8 +60,10 @@ def parse_input_statement(state):
 def parse_variable_declaration_start(state):
     # Parse WAZZUP
     # start of variable declaration block
+    global in_variable_block, wazzup_encountered
     token = match(state, "Variable List Delimiter", "WAZZUP")
     if token and end_of_line(state):
+        in_variable_block = True
         return {'node': 'variable_list_start'}
     elif not end_of_line(state):
         error(state, "Unexpected tokens after WAZZUP")
@@ -68,8 +72,10 @@ def parse_variable_declaration_start(state):
 def parse_variable_declaration_end(state):
     # Parse BUHBYE
     # end of variable declaration block
+    global in_variable_block
     token = match(state, "Variable List Delimiter", "BUHBYE")
     if token and end_of_line(state):
+        in_variable_block = False
         return {'node': 'variable_list_end'}
     elif not end_of_line(state):
         error(state, "Unexpected tokens after BUHBYE")

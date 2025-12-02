@@ -118,6 +118,10 @@ def parse_whole(filename):
         print(f"Parsing error: {e}")
         return None
     
+    # validation_error = validate_control_flow(state)
+    # if validation_error:
+    #     errors.append(validation_error)
+    
     return parse_tree, errors
 
 def parse_line(state):
@@ -159,6 +163,9 @@ def parse_line(state):
         return parse_smoosh(state)
     elif pattern_value == "MAEK":
         return parse_type_casting(state)
+    result = parse_if_structure(state)
+    if result:
+        return result
     elif pattern_value == "O RLY?":
         return parse_if_statement_start(state)
     elif pattern_value == "YA RLY":
@@ -168,20 +175,19 @@ def parse_line(state):
     elif pattern_value == "NO WAI":
         return parse_else_statement(state)
     elif pattern_value == "OIC":
-        return parse_if_end(state)
+        return parse_oic(state)
     elif pattern_value == "WTF?":
-        return parse_switch_start(state)
+        return parse_switch_structure(state)
     elif pattern_value == "OMG":
         return parse_switch_cases(state)
     elif pattern_value == "OMGWTF":
-        return parse_switch_end(state)
+        return parse_default_case(state)
     # for expressions as standalone statements
     # most likely that appears in the beginning as well
     elif pattern_value in ["BOTH SAEM", "DIFFRINT", "BIGGR OF", "SMALLR OF", 
                        "BOTH OF", "EITHER OF", "WON OF", "ALL OF", "ANY OF",
                        "SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF",
                        "NOT", "SMOOSH", "MAEK"]:
-        from expressions import parse_expression
         expr = parse_expression(state)
         if expr and end_of_line(state):
             return {
