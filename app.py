@@ -1105,8 +1105,7 @@ def execute_code(code_content, user_input=""):
             st.session_state.symbol_table = [
                 {
                     'Variable': k,
-                    'Value': format_value_for_display(v),
-                    'Type': get_lolcode_type(v)
+                    'Value': format_value_for_display(v)
                 }
                 for k, v in (st.session_state.awaiting_symbol_table or {}).items()
             ]
@@ -1116,8 +1115,7 @@ def execute_code(code_content, user_input=""):
         st.session_state.symbol_table = [
             {
                 'Variable': k, 
-                'Value': format_value_for_display(v),
-                'Type': get_lolcode_type(v)
+                'Value': format_value_for_display(v)
             } 
             for k, v in symbol_table.items()
         ]
@@ -1233,8 +1231,8 @@ with tables_col:
         if st.session_state.symbol_table:
             # Convert symbol table to DataFrame
             symbol_df = pd.DataFrame(st.session_state.symbol_table)
-            symbol_display = symbol_df[['Variable', 'Value', 'Type']].copy()
-            symbol_display.columns = ['Identifier', 'Value', 'Type']
+            symbol_display = symbol_df[['Variable', 'Value']].copy()
+            symbol_display.columns = ['Identifier', 'Value']
             
             # Display the symbol table
             st.dataframe(
