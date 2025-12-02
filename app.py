@@ -650,6 +650,23 @@ def execute_code(code_content, user_input=""):
                     )
                     # Continue after switch end
                     return process_remaining_parse_tree(parse_tree_obj, sym_table, out_lines, sem_errors, switch_end_idx + 1)
+                # Loop structure
+                elif result.get('node') == 'loop_start':
+                    # Find corresponding loop end
+                    loop_end_idx = None
+                    for j in range(idx + 1, len(parse_tree_obj)):
+                        if parse_tree_obj[j].get('parse_result', {}).get('node') == 'loop_end':
+                            loop_end_idx = j
+                            break
+                    if loop_end_idx is None:
+                        sem_errors.append(f"Line {line_no}: Loop missing end label")
+                        continue
+
+                    sym_table, out_lines, sem_errors = process_loop_block(
+                        parse_tree_obj, idx, loop_end_idx, sym_table, out_lines, sem_errors
+                    )
+                    # Continue after loop end
+                    return process_remaining_parse_tree(parse_tree_obj, sym_table, out_lines, sem_errors, loop_end_idx + 1)
                     
             return sym_table, out_lines, sem_errors
         
@@ -776,6 +793,100 @@ def execute_code(code_content, user_input=""):
             if isinstance(value, str):
                 return value != '' and value.upper() != 'FAIL'
             return False
+        def process_loop_block(parse_tree_obj, start_idx, end_idx, sym_table, out_lines, sem_errors):
+            """Execute loop between IM IN YR and IM OUTTA YR."""
+            start_entry = parse_tree_obj[start_idx]
+            start_res = start_entry.get('parse_result') or start_entry.get('ast')
+            mode = start_res.get('mode')  # 'WILE' or 'TIL'
+            condition_expr = start_res.get('condition')
+            incdec = start_res.get('incdec')
+            varname = start_res.get('varname')
+
+            # Collect body statements
+            body = []
+            for k in range(start_idx + 1, end_idx):
+                body.append(parse_tree_obj[k])
+
+            # Helper to evaluate condition
+            def cond_val():
+                val = extract_expression_value(condition_expr, sym_table, sem_errors, start_entry.get('line_number', '?')) if condition_expr else sym_table.get('IT')
+                truth = is_truthy(val)
+                return truth if mode == 'WILE' else (not truth)
+
+            # Run loop
+            max_iters = 10000
+            iters = 0
+            while True:
+                if not cond_val():
+                    break
+                # Execute body
+                status = run_statements(body)
+                if status == 'PAUSE':
+                    return sym_table, out_lines, sem_errors
+                if status == 'BREAK':
+                    break
+                # Apply increment/decrement
+                if varname and incdec:
+                    cur = sym_table.get(varname, 0)
+                    try:
+                        cur_num = int(cur) if isinstance(cur, str) and cur.isdigit() else int(cur)
+                    except Exception:
+                        cur_num = 0
+                    sym_table[varname] = cur_num + (1 if incdec == 'UPPIN' else -1)
+                iters += 1
+                if iters > max_iters:
+                    sem_errors.append(f"Line {start_entry.get('line_number','?')}: Loop exceeded max iterations")
+                    break
+            return sym_table, out_lines, sem_errors
+
+        def run_statements(statements):
+            """Run a flat list of statements; shared by switch/loop."""
+            nonlocal symbol_table, output_lines, semantic_errors
+            for stmt_entry in statements:
+                stmt_res = stmt_entry.get('parse_result') or stmt_entry.get('ast')
+                stmt_line = stmt_entry.get('line_number', '?')
+                if not stmt_res:
+                    continue
+                node = stmt_res.get('node')
+                if node == 'break_statement':
+                    return 'BREAK'
+                if node == 'variable_declaration':
+                    name = stmt_res.get('identifier')
+                    assign = stmt_res.get('assignment')
+                    value = extract_expression_value(assign, symbol_table, semantic_errors, stmt_line) if assign else None
+                    symbol_table[name] = value
+                elif node == 'variable_assignment':
+                    name = stmt_res.get('identifier')
+                    expr = stmt_res.get('expression')
+                    value = extract_expression_value(expr, symbol_table, semantic_errors, stmt_line)
+                    symbol_table[name] = value
+                elif node == 'output_statement':
+                    exprs = stmt_res.get('expressions', [])
+                    parts = []
+                    for expr in exprs:
+                        val = extract_expression_value(expr, symbol_table, semantic_errors, stmt_line)
+                        parts.append(format_value_for_display(val))
+                    if parts:
+                        concatenated = ''.join(parts)
+                        output_lines.append(concatenated)
+                        symbol_table['IT'] = concatenated
+                elif node == 'input_statement':
+                    var_name = stmt_res.get('identifier')
+                    if st.session_state._gimmeh_buffer:
+                        value = st.session_state._gimmeh_buffer.pop(0)
+                        symbol_table[var_name] = value
+                    else:
+                        st.session_state.awaiting_input = True
+                        st.session_state.awaiting_var = var_name
+                        st.session_state.awaiting_symbol_table = symbol_table
+                        st.session_state.awaiting_output_lines = output_lines
+                        st.session_state.awaiting_semantic_errors = semantic_errors
+                        st.session_state.console_output = f"Input required for variable '{var_name}'. Enter value below and press Submit."
+                        return 'PAUSE'
+                elif node in ['comparison_operation', 'logical_operation', 'comparison_expression', 'logical_expression']:
+                    val = extract_expression_value(stmt_res, symbol_table, semantic_errors, stmt_line)
+                    symbol_table['IT'] = val
+            return 'CONTINUE'
 
         def process_switch_block(parse_tree_obj, start_idx, end_idx, sym_table, out_lines, sem_errors, switch_expr):
             """Process switch-case block from WTF? to OIC."""

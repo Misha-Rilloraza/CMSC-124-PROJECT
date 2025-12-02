@@ -166,6 +166,10 @@ def parse_line(state):
         return parse_break(state)
     elif pattern_value == "OIC":
         return parse_if_end(state)
+    elif pattern_value == "IM IN YR":
+        return parse_loop_start(state)
+    elif pattern_value == "IM OUTTA YR":
+        return parse_loop_end(state)
     else:
         error(state, f"Unexpected statement: '{pattern_value}'")
         return None

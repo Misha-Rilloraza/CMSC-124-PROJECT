@@ -175,3 +175,71 @@ def parse_switch_end(state):
         'node': 'switch_end',
         'token': cond_token
     }
+
+# == LOOPS
+
+def parse_loop_start(state):
+    # Parse IM IN YR <label> (UPPIN YR|NERFIN YR) <var> (WILE|TIL) <condition>
+    token = match(state, "Start Loop Label", "IM IN YR")
+    if not token:
+        return None
+
+    label = None
+    next_tok = state['current_token']
+    if next_tok and next_tok['token_name'] == 'Variable Identifier':
+        label = next_tok['pattern']
+        advance(state)
+
+    # increment/decrement
+    incdec = None
+    varname = None
+    if match(state, "Increment", "UPPIN YR"):
+        incdec = 'UPPIN'
+    elif match(state, "Decrement", "NERFIN YR"):
+        incdec = 'NERFIN'
+    if incdec:
+        ident = state['current_token']
+        if ident and ident['token_name'] == 'Variable Identifier':
+            varname = ident['pattern']
+            advance(state)
+
+    # loop condition
+    mode = None
+    if match(state, "While Loop", "WILE"):
+        mode = 'WILE'
+    elif match(state, "Until Loop", "TIL"):
+        mode = 'TIL'
+    condition = parse_expression(state) if mode else None
+
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after loop header")
+        return None
+
+    return {
+        'node': 'loop_start',
+        'label': label,
+        'incdec': incdec,
+        'varname': varname,
+        'mode': mode,
+        'condition': condition,
+        'token': token
+    }
+
+def parse_loop_end(state):
+    # Parse IM OUTTA YR <label>
+    token = match(state, "End Loop Label", "IM OUTTA YR")
+    if not token:
+        return None
+    label = None
+    next_tok = state['current_token']
+    if next_tok and next_tok['token_name'] == 'Variable Identifier':
+        label = next_tok['pattern']
+        advance(state)
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after loop end")
+        return None
+    return {
+        'node': 'loop_end',
+        'label': label,
+        'token': token
+    }
