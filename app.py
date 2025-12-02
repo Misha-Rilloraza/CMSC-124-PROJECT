@@ -630,6 +630,26 @@ def execute_code(code_content, user_input=""):
                     )
                     # Skip to after OIC
                     return process_remaining_parse_tree(parse_tree_obj, sym_table, out_lines, sem_errors, oic_index + 1)
+                # Switch statement
+                elif result.get('node') == 'switch_start':
+                    # Find the matching switch end
+                    switch_end_idx = None
+                    for j in range(idx + 1, len(parse_tree_obj)):
+                        end_node = parse_tree_obj[j].get('parse_result', {}).get('node')
+                        if end_node in ['switch_end', 'if_statement_end']:
+                            switch_end_idx = j
+                            break
+                    if switch_end_idx is None:
+                        sem_errors.append(f"Line {line_no}: Switch statement missing OIC")
+                        continue
+
+                    # Evaluate switch using provided expression
+                    switch_expr = result.get('expression')
+                    sym_table, out_lines, sem_errors = process_switch_block(
+                        parse_tree_obj, idx, switch_end_idx, sym_table, out_lines, sem_errors, switch_expr
+                    )
+                    # Continue after switch end
+                    return process_remaining_parse_tree(parse_tree_obj, sym_table, out_lines, sem_errors, switch_end_idx + 1)
                     
             return sym_table, out_lines, sem_errors
         
@@ -756,6 +776,108 @@ def execute_code(code_content, user_input=""):
             if isinstance(value, str):
                 return value != '' and value.upper() != 'FAIL'
             return False
+
+        def process_switch_block(parse_tree_obj, start_idx, end_idx, sym_table, out_lines, sem_errors, switch_expr):
+            """Process switch-case block from WTF? to OIC."""
+            # Evaluate the switch subject value
+            subject_val = extract_expression_value(switch_expr, sym_table, sem_errors, parse_tree_obj[start_idx].get('line_number', '?')) if switch_expr else sym_table.get('IT')
+
+            # Collect cases and default
+            blocks = []
+            current_block = None
+            default_block = None
+
+            for idx in range(start_idx + 1, end_idx):
+                entry = parse_tree_obj[idx]
+                res = entry.get('parse_result') or entry.get('ast')
+                if not res:
+                    continue
+                node = res.get('node')
+                if node == 'switch_case':
+                    if current_block:
+                        blocks.append(current_block)
+                    current_block = {'type': 'case', 'value': res.get('case_value'), 'start': idx + 1, 'statements': []}
+                elif node == 'default_case':
+                    if current_block:
+                        blocks.append(current_block)
+                    current_block = None
+                    default_block = {'type': 'default', 'start': idx + 1, 'statements': []}
+                else:
+                    target = current_block if current_block else default_block
+                    if target is not None:
+                        target['statements'].append(entry)
+
+            if current_block:
+                blocks.append(current_block)
+
+            executed = False
+
+            # Helper to run a list of statements with GTFO handling
+            def run_statements(statements):
+                nonlocal sym_table, out_lines, sem_errors
+                for stmt_entry in statements:
+                    stmt_res = stmt_entry.get('parse_result') or stmt_entry.get('ast')
+                    stmt_line = stmt_entry.get('line_number', '?')
+                    if not stmt_res:
+                        continue
+                    node = stmt_res.get('node')
+                    if node == 'break_statement':
+                        return 'BREAK'
+                    if node == 'variable_declaration':
+                        name = stmt_res.get('identifier')
+                        assign = stmt_res.get('assignment')
+                        value = extract_expression_value(assign, sym_table, sem_errors, stmt_line) if assign else None
+                        sym_table[name] = value
+                    elif node == 'variable_assignment':
+                        name = stmt_res.get('identifier')
+                        expr = stmt_res.get('expression')
+                        value = extract_expression_value(expr, sym_table, sem_errors, stmt_line)
+                        sym_table[name] = value
+                    elif node == 'output_statement':
+                        exprs = stmt_res.get('expressions', [])
+                        parts = []
+                        for expr in exprs:
+                            val = extract_expression_value(expr, sym_table, sem_errors, stmt_line)
+                            parts.append(format_value_for_display(val))
+                        if parts:
+                            concatenated = ''.join(parts)
+                            out_lines.append(concatenated)
+                            sym_table['IT'] = concatenated
+                    elif node == 'input_statement':
+                        var_name = stmt_res.get('identifier')
+                        if st.session_state._gimmeh_buffer:
+                            value = st.session_state._gimmeh_buffer.pop(0)
+                            sym_table[var_name] = value
+                        else:
+                            st.session_state.awaiting_input = True
+                            st.session_state.awaiting_var = var_name
+                            st.session_state.awaiting_symbol_table = sym_table
+                            st.session_state.awaiting_output_lines = out_lines
+                            st.session_state.awaiting_semantic_errors = sem_errors
+                            st.session_state.console_output = f"Input required for variable '{var_name}'. Enter value below and press Submit."
+                            return 'PAUSE'
+                    elif node in ['comparison_operation', 'logical_operation', 'comparison_expression', 'logical_expression']:
+                        val = extract_expression_value(stmt_res, sym_table, sem_errors, stmt_line)
+                        sym_table['IT'] = val
+                return 'CONTINUE'
+
+            # Execute first matching case
+            for block in blocks:
+                case_val = extract_expression_value(block['value'], sym_table, sem_errors, parse_tree_obj[start_idx].get('line_number', '?'))
+                if subject_val == case_val:
+                    status = run_statements(block['statements'])
+                    executed = True
+                    if status == 'PAUSE':
+                        return sym_table, out_lines, sem_errors
+                    break
+
+            # If none executed, run default if present
+            if not executed and default_block:
+                status = run_statements(default_block['statements'])
+                if status == 'PAUSE':
+                    return sym_table, out_lines, sem_errors
+
+            return sym_table, out_lines, sem_errors
 
         # Start processing from the top (this may pause on first GIMMEH)
         symbol_table, output_lines, semantic_errors = process_remaining_parse_tree(parse_tree, symbol_table, output_lines, semantic_errors, 0)

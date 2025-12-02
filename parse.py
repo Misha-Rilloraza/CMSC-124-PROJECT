@@ -156,14 +156,16 @@ def parse_line(state):
         return parse_elseif_statement(state)
     elif pattern_value == "NO WAI":
         return parse_else_statement(state)
-    elif pattern_value == "OIC":
-        return parse_if_end(state)
-    elif pattern_value == "WTF?":
+    elif pattern_value in ["WTF?", "WTF"]:
         return parse_switch_start(state)
     elif pattern_value == "OMG":
         return parse_switch_cases(state)
     elif pattern_value == "OMGWTF":
-        return parse_switch_end(state)
+        return parse_default_case(state)
+    elif pattern_value == "GTFO":
+        return parse_break(state)
+    elif pattern_value == "OIC":
+        return parse_if_end(state)
     else:
         error(state, f"Unexpected statement: '{pattern_value}'")
         return None
@@ -187,6 +189,22 @@ def parse_kthxbye(state):
     elif not end_of_line(state):
         error(state, "Unexpected tokens after KTHXBYE.")
     return None
+def parse_end(state):
+    # Try to parse switch end first, then fall back to if end
+    res = parse_switch_end(state)
+    if res:
+        return res
+    return parse_if_end(state)
+
+def parse_break(state):
+    # Parse GTFO (break)
+    token = match(state, "Break Statement", "GTFO")
+    if not token:
+        return None
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after GTFO")
+        return None
+    return {"node": "break_statement", "token": token}
 
 # def check_conditionals(token):
 #     # Check if line starts with conditonal expression

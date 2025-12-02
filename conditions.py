@@ -102,7 +102,7 @@ def parse_if_end(state):
 
 def parse_switch_start(state):
     # Parse WTF
-    cond_token = match(state, "Switch", "WTF?")
+    cond_token = match(state, "Switch", "WTF?") or match(state, "Switch", "WTF")
     if not cond_token:
         return None
     
