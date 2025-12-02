@@ -137,6 +137,10 @@ def parse_line(state):
     elif pattern_value == "I HAS A":
         return parse_variable_declaration(state, in_var_declaration=True)
     elif current_token['token_name'] == "Variable Identifier":
+        # type cast first, then variable assignment
+        type_cast_result = parse_type_cast(state)
+        if type_cast_result:
+            return type_cast_result
         return parse_variable_assignment(state)
     elif pattern_value == "VISIBLE":
         return parse_output_statement(state)

@@ -151,6 +151,8 @@ def parse_factor(state):
         error(state, "Unexpected end of line in expression")
         return None
     
+    if state['current_token']['pattern'] == "MAEK":
+        return parse_maek_expression(state)
     if state['current_token']['pattern'] == "NOT":
         return parse_unary_expression(state)
     if state['current_token']['pattern'] == "SMOOSH":
@@ -159,7 +161,7 @@ def parse_factor(state):
         return parse_comparison_expression(state)
     elif state['current_token']['pattern'] in ["SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF"]:
         return parse_arithmetic_expression(state)
-    elif state['current_token']['token_name'] in ["Variable Identifier", "String Literal", "Boolean Literal", "Type Literal", "Float Literal", "Integer Literal"]:
+    elif state['current_token']['token_name'] in ["Variable Identifier", "String Literal", "Boolean Literal", "TYPE Literal", "Float Literal", "Integer Literal"]:
         return parse_simple_expression(state)
     else:
         error(state, f"Unexpected token in expression: {state['current_token']['pattern']}")
@@ -273,8 +275,32 @@ def parse_arithmetic_expression(state):
     }
     return results
 
+def parse_maek_expression(state):
+    """Parse MAEK expression: MAEK x A NUMBR or MAEK x TROOF"""
+    match(state, "Type Casting", "MAEK")
+    
+    operand = parse_simple_expression(state)
+    if not operand:
+        error(state, "Expected expression after MAEK")
+        return None
+    
+    # Check for optional 'A' keyword
+    if state['current_token'] and state['current_token']['pattern'] == 'A':
+        match(state, "Explicit Casting", "A")
+    
+    type_token = match(state, "TYPE Literal")
+    if not type_token:
+        error(state, "Expected type after MAEK expression")
+        return None
+    
+    return {
+        'node': 'maek_expression',
+        'operand': operand,
+        'target_type': type_token['pattern']
+    }
+
 def parse_simple_expression(state):
-    # Parse identifiers and literals
+    # Parse identifiers and literals 
     current_token = state['current_token']
 
     if current_token['token_name'] == 'Variable Identifier':
@@ -286,9 +312,6 @@ def parse_simple_expression(state):
     elif current_token['token_name'] == 'Boolean Literal':
         advance(state)
         return {'node': 'boolean_literal', 'value': current_token['pattern']}
-    elif current_token['token_name'] == 'Type Literal':
-        advance(state)
-        return {'node': 'type_literal', 'value': current_token['pattern']}
     elif current_token['token_name'] == 'Float Literal':
         advance(state)
         return {'node': 'float_literal', 'value': current_token['pattern']}

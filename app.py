@@ -233,6 +233,12 @@ def extract_expression_value(expr, symbol_table, errors=None, line_no=None):
                     result_parts.append(str(value))
             return ''.join(result_parts)
         
+        # MAEK expression (type casting)
+        elif node_type == 'maek_expression':
+            operand = extract_expression_value(expr.get('operand'), symbol_table, errors, line_no)
+            target_type = expr.get('target_type')
+            return cast_value(operand, target_type)
+        
         # Arithmetic expression
         elif node_type == 'arithmetic_expression':
             return evaluate_arithmetic_expr(expr, symbol_table, errors, line_no)
@@ -385,6 +391,52 @@ def to_boolean(value):
         return len(value) > 0
     return False
 
+def cast_value(value, target_type):
+    """Cast a value to a specific LOLCODE type."""
+    if target_type == 'NUMBR':
+        # Cast to integer
+        if isinstance(value, bool):
+            return 1 if value else 0
+        if isinstance(value, (int, float)):
+            return int(value)
+        if isinstance(value, str):
+            try:
+                return int(float(value))
+            except:
+                return 0
+        return 0
+    
+    elif target_type == 'NUMBAR':
+        # Cast to float
+        if isinstance(value, bool):
+            return 1.0 if value else 0.0
+        if isinstance(value, (int, float)):
+            return float(value)
+        if isinstance(value, str):
+            try:
+                return float(value)
+            except:
+                return 0.0
+        return 0.0
+    
+    elif target_type == 'YARN':
+        # Cast to string
+        if value is None:
+            return ''
+        if isinstance(value, bool):
+            return 'WIN' if value else 'FAIL'
+        return str(value)
+    
+    elif target_type == 'TROOF':
+        # Cast to boolean
+        return to_boolean(value)
+    
+    elif target_type == 'NOOB':
+        # Cast to None
+        return None
+    
+    return value
+
 def format_value_for_display(value):
     """Format a value for display in the symbol table."""
     if value is None:
@@ -392,9 +444,9 @@ def format_value_for_display(value):
     if isinstance(value, bool):
         return 'WIN' if value else 'FAIL'
     if isinstance(value, float):
-        # Format float nicely
+        # show floats with decimal point
         if value.is_integer():
-            return str(int(value))
+            return f"{int(value)}.0"
         return str(value)
     if isinstance(value, str):
         return value
@@ -479,17 +531,27 @@ def execute_code(code_content, user_input=""):
                     expr = result.get('expression')
                     value = extract_expression_value(expr, sym_table, sem_errors, line_no)
                     sym_table[name] = value
+                # Type casting
+                elif result.get('node') == 'type_cast':
+                    name = result.get('identifier')
+                    target_type = result.get('target_type')
+                    if name not in sym_table:
+                        sem_errors.append(f"Line {line_no}: Semantic error: Variable '{name}' not declared")
+                    else:
+                        current_value = sym_table[name]
+                        sym_table[name] = cast_value(current_value, target_type)
                 # Output statement
                 elif result.get('node') == 'output_statement':
                     exprs = result.get('expressions', [])
                     visible_output_parts = []
                     for expr in exprs:
                         val = extract_expression_value(expr, sym_table, sem_errors, line_no)
-                        out_lines.append(format_value_for_display(val))
                         visible_output_parts.append(format_value_for_display(val))
-                    # The IT variable is implicitly set to the concatenated output of VISIBLE
+                    # VISIBLE concatenates all expressions and outputs on a single line
                     if visible_output_parts:
-                        sym_table['IT'] = ' '.join(visible_output_parts)
+                        concatenated = ''.join(visible_output_parts)
+                        out_lines.append(concatenated)
+                        sym_table['IT'] = concatenated
             return sym_table, out_lines, sem_errors
 
         # Start processing from the top (this may pause on first GIMMEH)
@@ -754,10 +816,12 @@ if st.session_state.awaiting_input:
                     visible_output_parts = []
                     for expr in exprs:
                         val = extract_expression_value(expr, st.session_state.awaiting_symbol_table, sem_errs, line_no)
-                        out_lines.append(format_value_for_display(val))
                         visible_output_parts.append(format_value_for_display(val))
+                    # VISIBLE concatenates all expressions and outputs on a single line
                     if visible_output_parts:
-                        st.session_state.awaiting_symbol_table['IT'] = ' '.join(visible_output_parts)
+                        concatenated = ''.join(visible_output_parts)
+                        out_lines.append(concatenated)
+                        st.session_state.awaiting_symbol_table['IT'] = concatenated
 
             # Finished execution - clear awaiting state and write outputs
             st.session_state.awaiting_input = False

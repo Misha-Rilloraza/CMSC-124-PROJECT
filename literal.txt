@@ -2,7 +2,7 @@
 ^[+-]?[0-9]+\.[0-9]+;NUMBAR Literal
 "[^"\r]*";YARN Literal;
 ^(WIN|FAIL);TROOF Literal;
-^(NOOB|NUMBR|NUMBAR|YARN|TROOF);TYPE Literal
+\b(NOOB|NUMBR|NUMBAR|YARN|TROOF)\b;TYPE Literal
 
 
 extracted from which line number

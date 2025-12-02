@@ -1,6 +1,41 @@
 from helper import error, match, end_of_line
 from expressions import parse_expression
 
+def parse_type_cast(state):
+    """Parse type casting"""
+    # Save current position to backtrack if not a type cast
+    current_pos = state['position']
+    
+    var_identifier = match(state, "Variable Identifier")
+    if not var_identifier:
+        return None
+    
+    # Check for IS NOW A pattern
+    if state['current_token'] and state['current_token']['pattern'] == 'IS NOW A':
+        match(state, "Recast Variable", "IS NOW A")
+        type_token = match(state, "TYPE Literal")
+        if not type_token:
+            error(state, "Expected type after IS NOW A")
+            return None
+        
+        if not end_of_line(state):
+            error(state, "Unexpected tokens after type cast")
+            return None
+        
+        return {
+            'node': 'type_cast',
+            'identifier': var_identifier['pattern'],
+            'target_type': type_token['pattern']
+        }
+    
+    # Not a type cast, restore position so parse_variable_assignment can try
+    state['position'] = current_pos
+    if state['position'] < len(state['tokens']):
+        state['current_token'] = state['tokens'][state['position']]
+    else:
+        state['current_token'] = None
+    return None
+
 def parse_output_statement(state):
     # Parse VISIBLE
     # for displaying output
@@ -18,7 +53,7 @@ def parse_output_statement(state):
             error(state, "Expected expression after 'VISIBLE'")
             break
         
-        # Check for + separator (VISIBLE concatenation)
+        # Check for + separator for concatenation
         if state['current_token'] and state['current_token']['pattern'] == '+':
             match(state, "Concatenation Operator", "+")
         else:
@@ -124,19 +159,11 @@ def parse_variable_assignment(state):
         return None
     
     if state['current_token'] and state['current_token']['pattern'] == 'R':
-        assign_token = match(state, "Variable Reassignment", "R")
+        assign_token = match(state, "Variable Re-Assignment", "R")
         operator = 'reassignment'
-        expression = parse_expression(state)
-        if not expression:
-            error(state, "Expected expression after 'R'")
-            return None
     elif state['current_token'] and state['current_token']['pattern'] == 'ITZ':
         assign_token = match(state, "Variable Assignment", "ITZ")
         operator = 'assignment'
-        expression = parse_expression(state)
-        if not expression:
-            error(state, "Expected expression after 'ITZ'")
-            return None
     else:
         return None
     
