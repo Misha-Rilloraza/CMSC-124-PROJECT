@@ -16,18 +16,14 @@ def parse_whole(filename):
                 lines[line_no] = []
             lines[line_no].append(token)
 
-        # show found tokens per line with the number and column
-        # for line_no in sorted(lines.keys()):
-        #     print(f"Line {line_no}:")
-        #     for token in lines[line_no]:
-        #         print(f"  Column {token['column_number']}: {token['token_name']} ({token['pattern']})")
-
         parse_tree = []
         errors = []
         hai_start = False
         bye_end = False
         in_var_declaration = False
         variable_declarations = []
+        waz_start = False
+        buh_end = False
 
         # parse each line independently
         for line_no in lines:
@@ -62,36 +58,36 @@ def parse_whole(filename):
                 if result['node'] == 'start_of_program':
                     if hai_start:
                         errors.append(f"Line {line_no}: Multiple HAI statements")
-                        if result['node'] == 'variable_list_start':
-                            in_var_declaration = True
-                            variable_declarations = []
-                        elif result['node'] == 'variable-list_end':
-                            in_var_declaration = False
-                            if variable_declarations:
-                                parse_tree.append({
-                                    'line_number': line_no,
-                                    'ast': {
-                                        'node': 'variable_declaration_block',
-                                        'declarations': variable_declarations
-                                    },
-                                    'tokens': ['WAZZUP...BUHBYE block']
-                                })
-                        elif in_var_declaration and result['node'] == 'variable_declaration':
-                            variable_declarations.append(result)
-                        else:
-                            if not in_var_declaration or result['node'] not in ['variable_declaration']:
-                                parse_tree.append({
-                                    'line_number': line_no,
-                                    'ast': result,
-                                    'tokens': line_tokens
-                                })
                     hai_start = True
                 elif result['node'] == 'end_of_program':
                     if bye_end:
                         errors.append(f"Line {line_no}: Multiple KTHXBYE statements")
                     bye_end = True
-
-                if not state["errors"]:
+                
+                if result['node'] == 'variable_list_start':
+                    if waz_start:
+                        errors.append(f"Line {line_no}: Nested WAZZUP not allowed")
+                    else:
+                        variable_declarations = []
+                    waz_start = True
+                elif result['node'] == 'variable_list_end':
+                    if buh_end:
+                        errors.append(f"Line {line_no}: BUHBYE without matching WAZZUP")
+                    # else:
+                    #     # Close the block
+                    #     parse_tree.append({
+                    #         "line_number": line_no,
+                    #         "ast": {
+                    #             "node": "variable_declaration_block",
+                    #             "declarations": variable_declarations
+                    #         },
+                    #         "tokens": line_tokens
+                    #     })
+                    buh_end = True
+                elif in_var_declaration and result['node'] == 'variable_declaration':
+                    variable_declarations.append(result)
+                else:
+                    # regular AST node
                     parse_tree.append({
                         "line_number": line_no,
                         "parse_result": result,
@@ -102,6 +98,10 @@ def parse_whole(filename):
             errors.append("Error: Missing HAI statement at the beginning of the program.")
         if not bye_end:
             errors.append("Error: Missing KTHXBYE statement at the end of the program.")
+        if not waz_start:
+            errors.append("Error: Missing WAZZUP for variable declaration block.")
+        if not buh_end:
+            errors.append("Error: Missing BUHBYE for variable declaration block.")
         if hai_start and bye_end:
             hai_line = None
             bye_line = None
@@ -114,13 +114,21 @@ def parse_whole(filename):
                 print("\nProgram structure is valid with HAI and KTHXBYE.")
             else:
                 errors.append("Error: KTHXBYE appears before HAI.")
+        if waz_start and buh_end:
+            waz_line = None
+            buh_line = None
+            for entry in parse_tree:
+                if entry['parse_result']['node'] == 'variable_list_start':
+                    hai_line = entry['line_number']
+                elif entry['parse_result']['node'] == 'variable_list_end':
+                    bye_line = entry['line_number']
+            if hai_line and bye_line and hai_line < bye_line:
+                print("\nProgram structure is valid with WAZZUP and BUHBYE.")
+            else:
+                errors.append("Error: KTHXBYE appears before HAI.")
     except Exception as e:
         print(f"Parsing error: {e}")
         return None
-    
-    # validation_error = validate_control_flow(state)
-    # if validation_error:
-    #     errors.append(validation_error)
     
     return parse_tree, errors
 
@@ -141,47 +149,48 @@ def parse_line(state):
         return parse_variable_declaration_end(state)
     elif pattern_value == "I HAS A":
         return parse_variable_declaration(state, in_var_declaration=True)
-    elif current_token['token_name'] == "Variable Identifier":
-        # return parse_variable_assignment(state)
-        if len(state['tokens']) > 1:
-            next_token = state['tokens'][1]['pattern']
-            if next_token == 'R' or next_token == 'ITZ':
-                return parse_variable_assignment(state)
-            elif next_token == 'IS NOW A':
-                return parse_is_now_a_type_cast(state)
-            else:
-                # this is to handle cases where variable reference is not alone
-                return parse_variable_reference(state)
-        else:
-            # we parse as variable reference if single token
-            return parse_variable_reference(state)
+    # elif current_token['token_name'] == "Variable Identifier":
+    #     # return parse_variable_assignment(state)
+    #     if len(state['tokens']) > 1:
+    #         next_token = state['tokens'][1]['pattern']
+    #         if next_token == 'R' or next_token == 'ITZ':
+    #             return parse_variable_assignment(state)
+    #         elif next_token == 'IS NOW A':
+    #             return parse_is_now_a_type_cast(state)
+    #         else:
+    #             # this is to handle cases where variable reference is not alone
+    #             return parse_variable_reference(state)
+    #     else:
+    #         # we parse as variable reference if single token
+    #         return parse_variable_reference(state)
     elif pattern_value == "VISIBLE":
         return parse_output_statement(state)
     elif pattern_value == "GIMMEH":
         return parse_input_statement(state)
     elif pattern_value == "SMOOSH":
         return parse_smoosh(state)
-    elif pattern_value == "MAEK":
-        return parse_type_casting(state)
-    result = parse_if_structure(state)
-    if result:
-        return result
-    elif pattern_value == "O RLY?":
-        return parse_if_statement_start(state)
-    elif pattern_value == "YA RLY":
-        return parse_then_statement(state)
-    elif pattern_value == "MEBBE":
-        return parse_elseif_statement(state)
-    elif pattern_value == "NO WAI":
-        return parse_else_statement(state)
-    elif pattern_value == "OIC":
-        return parse_oic(state)
-    elif pattern_value == "WTF?":
-        return parse_switch_structure(state)
-    elif pattern_value == "OMG":
-        return parse_switch_cases(state)
-    elif pattern_value == "OMGWTF":
-        return parse_default_case(state)
+
+    # elif pattern_value == "MAEK":
+    #     return parse_type_casting(state)
+    # result = parse_if_structure(state)
+    # if result:
+    #     return result
+    # elif pattern_value == "O RLY?":
+    #     return parse_if_statement_start(state)
+    # elif pattern_value == "YA RLY":
+    #     return parse_then_statement(state)
+    # elif pattern_value == "MEBBE":
+    #     return parse_elseif_statement(state)
+    # elif pattern_value == "NO WAI":
+    #     return parse_else_statement(state)
+    # elif pattern_value == "OIC":
+    #     return parse_oic(state)
+    # elif pattern_value == "WTF?":
+    #     return parse_switch_structure(state)
+    # elif pattern_value == "OMG":
+    #     return parse_switch_cases(state)
+    # elif pattern_value == "OMGWTF":
+    #     return parse_default_case(state)
     # for expressions as standalone statements
     # most likely that appears in the beginning as well
     elif pattern_value in ["BOTH SAEM", "DIFFRINT", "BIGGR OF", "SMALLR OF", 
@@ -202,50 +211,29 @@ def parse_hai(state):
     # Parse HAI
     # begin of program
     token = match(state, "Code Delimiter", "HAI")
-    if token and end_of_line(state):
-        return {"node": "start_of_program"}
-    elif not end_of_line(state):
-        error(state, "Unexpected tokens after HAI.")
-    return None
+    if not token:
+        error(state, "Expected HAI")
+        return None
+
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after KTHXBYE")
+        return None
+
+    return {"node": "start_of_program", "token": token}
 
 def parse_kthxbye(state):
     # Parse KTHXBYE
     # end of program
     token = match(state, "Code Delimiter", "KTHXBYE")
-    if token and end_of_line(state):
-        return {"node": "end_of_program"}
-    elif not end_of_line(state):
-        error(state, "Unexpected tokens after KTHXBYE.")
-    return None
+    if not token:
+        error(state, "Expected KTHXBYE")
+        return None
 
-# def check_conditionals(token):
-#     # Check if line starts with conditonal expression
-#     # comparison
-#     if token['pattern'] in ["BOTH SAEM", "DIFFRINT", "BIGGR OF", "SMALLR OF"]:
-#         return True
-#     # logical
-#     if token['pattern'] in ["BOTH OF", "EITHER OF", "WON OF", "ALL OF", "ANY OF", "NOT"]:
-#         return True
-#     # arithmetic
-#     if token['pattern'] in ["SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF"]:
-#         return True
-#     # boolean
-#     if token['token_name'] == "Boolean Literal":
-#         return True
-#     # type
-#     if token['token_name'] == "Type Literal":
-#         return True
-#     # stirng
-#     if token['token_name'] == "String Literal":
-#         return True
-#     # numbers
-#     if token['token_name'] in ["Integer Literal", "Float Literal"]:
-#         return True
-#     # variable identifiers
-#     if token['token_name'] == "Variable Identifier":
-#         return True
-    
-#     return False
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after KTHXBYE")
+        return None
+
+    return {"node": "end_of_program", "token": token}
 
 def print_results(parse_tree, errors):
     print("\n" + "="*60)
@@ -356,46 +344,46 @@ def print_results(parse_tree, errors):
             print(f" - SMOOSH parts: {part_strings}")
 
         # type casting details
-        elif node_type == 'type_casting':
-            target_type = result.get('target_type', 'unknown')
-            expr_string = extract_value(result.get('expression', {}))
-            expr_type = result.get('expression', {}).get('node', 'unknown')
-            print(f" - MAEK to {target_type}: {expr_type}: '{expr_string}'")
+        # elif node_type == 'type_casting':
+        #     target_type = result.get('target_type', 'unknown')
+        #     expr_string = extract_value(result.get('expression', {}))
+        #     expr_type = result.get('expression', {}).get('node', 'unknown')
+        #     print(f" - MAEK to {target_type}: {expr_type}: '{expr_string}'")
 
         # conditionals
-        elif result['node'] == 'if_statement_start':
-            print(f" - IF statement begins")
+        # elif result['node'] == 'if_statement_start':
+        #     print(f" - IF statement begins")
         
-        elif result['node'] == 'then_statement':
-            print(f" - THEN branch begins")
+        # elif result['node'] == 'then_statement':
+        #     print(f" - THEN branch begins")
         
-        elif result['node'] == 'else_if_statement':
-            condition_string = extract_value(result['condition'])
-            print(f" - ELSE IF branch begins")
-            print(f"       Condition: {result['condition']['node']}: '{condition_string}'")
+        # elif result['node'] == 'else_if_statement':
+        #     condition_string = extract_value(result['condition'])
+        #     print(f" - ELSE IF branch begins")
+        #     print(f"       Condition: {result['condition']['node']}: '{condition_string}'")
         
-        elif result['node'] == 'else_statement':
-            print(f" - ELSE branch begins")
+        # elif result['node'] == 'else_statement':
+        #     print(f" - ELSE branch begins")
         
-        elif result['node'] == 'if_statement_end':
-            print(f" - IF statement ends")
+        # elif result['node'] == 'if_statement_end':
+        #     print(f" - IF statement ends")
         
-        # switch statements
-        elif result['node'] == 'switch_start':
-            expr_string = extract_value(result['expression'])
-            print(f" - SWITCH statement begins")
-            print(f"       Expression: {result['expression']['node']}: '{expr_string}'")
+        # # switch statements
+        # elif result['node'] == 'switch_start':
+        #     expr_string = extract_value(result['expression'])
+        #     print(f" - SWITCH statement begins")
+        #     print(f"       Expression: {result['expression']['node']}: '{expr_string}'")
         
-        elif result['node'] == 'switch_case':
-            case_string = extract_value(result['case_value'])
-            print(f" - CASE branch begins")
-            print(f"       Case value: {result['case_value']['node']}: '{case_string}'")
+        # elif result['node'] == 'switch_case':
+        #     case_string = extract_value(result['case_value'])
+        #     print(f" - CASE branch begins")
+        #     print(f"       Case value: {result['case_value']['node']}: '{case_string}'")
         
-        elif result['node'] == 'default_case':
-            print(f" - DEFAULT branch begins")
+        # elif result['node'] == 'default_case':
+        #     print(f" - DEFAULT branch begins")
         
-        elif result['node'] == 'switch_end':
-            print(f" - SWITCH statement ends")
+        # elif result['node'] == 'switch_end':
+        #     print(f" - SWITCH statement ends")
         
         else:
             print(f" - [Unhandled node type: {node_type}]")
