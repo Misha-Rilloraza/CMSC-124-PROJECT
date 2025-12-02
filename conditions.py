@@ -243,3 +243,79 @@ def parse_loop_end(state):
         'label': label,
         'token': token
     }
+
+# == FUNCTIONS
+
+def parse_function_def(state):
+    # Parse HOW IZ I <name> (YR <param>)* 
+    token = match(state, "Begin Function Definition", "HOW IZ I")
+    if not token:
+        return None
+    
+    func_name = None
+    next_tok = state['current_token']
+    if next_tok and next_tok['token_name'] == 'Variable Identifier':
+        func_name = next_tok['pattern']
+        advance(state)
+    else:
+        error(state, "Expected function name after HOW IZ I")
+        return None
+    
+    # Parse parameters: YR <param> AN YR <param> ...
+    params = []
+    while state['current_token'] and state['current_token']['pattern'] == 'YR':
+        advance(state)  # consume YR
+        param_tok = state['current_token']
+        if param_tok and param_tok['token_name'] == 'Variable Identifier':
+            params.append(param_tok['pattern'])
+            advance(state)
+        else:
+            error(state, "Expected parameter name after YR")
+            break
+        # Check for AN separator
+        if state['current_token'] and state['current_token']['pattern'] == 'AN':
+            advance(state)  # consume AN
+        else:
+            break
+    
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after function header")
+        return None
+    
+    return {
+        'node': 'function_def',
+        'name': func_name,
+        'params': params,
+        'token': token
+    }
+
+def parse_function_end(state):
+    # Parse IF U SAY SO
+    token = match(state, "End Function Definition", "IF U SAY SO")
+    if not token:
+        return None
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after IF U SAY SO")
+        return None
+    return {
+        'node': 'function_end',
+        'token': token
+    }
+
+def parse_return(state):
+    # Parse FOUND YR <expression>
+    token = match(state, "Return Keyword", "FOUND YR")
+    if not token:
+        return None
+    expr = parse_expression(state)
+    if not expr:
+        error(state, "Expected expression after FOUND YR")
+        return None
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after return expression")
+        return None
+    return {
+        'node': 'return_statement',
+        'expression': expr,
+        'token': token
+    }

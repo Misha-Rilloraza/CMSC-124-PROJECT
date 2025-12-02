@@ -170,6 +170,14 @@ def parse_line(state):
         return parse_loop_start(state)
     elif pattern_value == "IM OUTTA YR":
         return parse_loop_end(state)
+    elif pattern_value == "HOW IZ I":
+        return parse_function_def(state)
+    elif pattern_value == "IF U SAY SO":
+        return parse_function_end(state)
+    elif pattern_value == "FOUND YR":
+        return parse_return(state)
+    elif pattern_value == "I IZ":
+        return parse_function_call(state)
     else:
         error(state, f"Unexpected statement: '{pattern_value}'")
         return None

@@ -46,7 +46,7 @@
 \bWILE\b;While Loop
 \bIM\sOUTTA\sYR\b;End Loop Label
 \bHOW\sIZ\sI\b;Begin Function Definition
-\bIF\sYOU\sSAY\sSO\b;End Function Definition
+\bIF\sU\sSAY\sSO\b;End Function Definition
 \bGTFO\b;Break Statement
 \bFOUND\sYR\b;Return Keyword
 \bI\sIZ\b;Function Call

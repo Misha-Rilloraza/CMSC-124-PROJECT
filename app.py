@@ -542,6 +542,7 @@ def execute_code(code_content, user_input=""):
 
         # Build symbol table and collect output from parse tree
         symbol_table = {}
+        function_table = {}  # Store function definitions
         output_lines = []
 
         # Helper to process remaining parse tree from a start index
@@ -667,6 +668,108 @@ def execute_code(code_content, user_input=""):
                     )
                     # Continue after loop end
                     return process_remaining_parse_tree(parse_tree_obj, sym_table, out_lines, sem_errors, loop_end_idx + 1)
+                    
+                # Function definition
+                elif result.get('node') == 'function_def':
+                    # Find function end
+                    func_end_idx = None
+                    for j in range(idx + 1, len(parse_tree_obj)):
+                        if parse_tree_obj[j].get('parse_result', {}).get('node') == 'function_end':
+                            func_end_idx = j
+                            break
+                    if func_end_idx is None:
+                        sem_errors.append(f"Line {line_no}: Function missing IF U SAY SO")
+                        continue
+                    
+                    # Store function definition
+                    func_name = result.get('name')
+                    func_params = result.get('params', [])
+                    func_body = []
+                    for k in range(idx + 1, func_end_idx):
+                        func_body.append(parse_tree_obj[k])
+                    
+                    function_table[func_name] = {
+                        'params': func_params,
+                        'body': func_body,
+                        'line': line_no
+                    }
+                    # Skip to after function end
+                    return process_remaining_parse_tree(parse_tree_obj, sym_table, out_lines, sem_errors, func_end_idx + 1)
+                
+                # Function call
+                elif result.get('node') == 'function_call':
+                    func_name = result.get('name')
+                    if func_name not in function_table:
+                        sem_errors.append(f"Line {line_no}: Undefined function '{func_name}'")
+                        continue
+                    
+                    func_def = function_table[func_name]
+                    func_params = func_def['params']
+                    func_body = func_def['body']
+                    call_args = result.get('arguments', [])
+                    
+                    # Create local scope
+                    local_scope = dict(sym_table)
+                    # Bind arguments to parameters
+                    for i, param in enumerate(func_params):
+                        if i < len(call_args):
+                            arg_val = extract_expression_value(call_args[i], sym_table, sem_errors, line_no)
+                            local_scope[param] = arg_val
+                        else:
+                            local_scope[param] = None
+                    
+                    # Execute function body
+                    return_val = None
+                    for stmt_entry in func_body:
+                        stmt_res = stmt_entry.get('parse_result') or stmt_entry.get('ast')
+                        stmt_line = stmt_entry.get('line_number', '?')
+                        if not stmt_res:
+                            continue
+                        node = stmt_res.get('node')
+                        if node == 'return_statement':
+                            return_val = extract_expression_value(stmt_res.get('expression'), local_scope, sem_errors, stmt_line)
+                            break
+                        elif node == 'break_statement':
+                            break
+                        elif node == 'variable_declaration':
+                            name = stmt_res.get('identifier')
+                            assign = stmt_res.get('assignment')
+                            value = extract_expression_value(assign, local_scope, sem_errors, stmt_line) if assign else None
+                            local_scope[name] = value
+                        elif node == 'variable_assignment':
+                            name = stmt_res.get('identifier')
+                            expr = stmt_res.get('expression')
+                            value = extract_expression_value(expr, local_scope, sem_errors, stmt_line)
+                            local_scope[name] = value
+                        elif node == 'output_statement':
+                            exprs = stmt_res.get('expressions', [])
+                            parts = []
+                            for expr in exprs:
+                                val = extract_expression_value(expr, local_scope, sem_errors, stmt_line)
+                                parts.append(format_value_for_display(val))
+                            if parts:
+                                concatenated = ''.join(parts)
+                                out_lines.append(concatenated)
+                                local_scope['IT'] = concatenated
+                        elif node == 'input_statement':
+                            var_name = stmt_res.get('identifier')
+                            if st.session_state._gimmeh_buffer:
+                                value = st.session_state._gimmeh_buffer.pop(0)
+                                local_scope[var_name] = value
+                            else:
+                                st.session_state.awaiting_input = True
+                                st.session_state.awaiting_var = var_name
+                                st.session_state.awaiting_symbol_table = sym_table
+                                st.session_state.awaiting_output_lines = out_lines
+                                st.session_state.awaiting_semantic_errors = sem_errors
+                                st.session_state.console_output = f"Input required for variable '{var_name}'. Enter value below and press Submit."
+                                return sym_table, out_lines, sem_errors
+                        elif node in ['comparison_operation', 'logical_operation', 'comparison_expression', 'logical_expression']:
+                            val = extract_expression_value(stmt_res, local_scope, sem_errors, stmt_line)
+                            local_scope['IT'] = val
+                    
+                    # Set IT to return value in caller scope
+                    sym_table['IT'] = return_val if return_val is not None else None
                     
             return sym_table, out_lines, sem_errors
         

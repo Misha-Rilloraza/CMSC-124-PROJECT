@@ -1,5 +1,47 @@
-from helper import error, match, end_of_line
+from helper import error, match, end_of_line, advance
 from expressions import parse_expression
+
+def parse_function_call(state):
+    # Parse I IZ <name> (YR <arg>)*
+    token = match(state, "Function Call", "I IZ")
+    if not token:
+        return None
+    
+    func_name = None
+    next_tok = state['current_token']
+    if next_tok and next_tok['token_name'] == 'Variable Identifier':
+        func_name = next_tok['pattern']
+        advance(state)
+    else:
+        error(state, "Expected function name after I IZ")
+        return None
+    
+    # Parse arguments: YR <expr> AN YR <expr> ...
+    args = []
+    while state['current_token'] and state['current_token']['pattern'] == 'YR':
+        advance(state)  # consume YR
+        arg_expr = parse_expression(state)
+        if arg_expr:
+            args.append(arg_expr)
+        else:
+            error(state, "Expected argument expression after YR")
+            break
+        # Check for AN separator
+        if state['current_token'] and state['current_token']['pattern'] == 'AN':
+            advance(state)  # consume AN
+        else:
+            break
+    
+    if not end_of_line(state):
+        error(state, "Unexpected tokens after function call")
+        return None
+    
+    return {
+        'node': 'function_call',
+        'name': func_name,
+        'arguments': args,
+        'token': token
+    }
 
 def parse_type_cast(state):
     """Parse type casting"""
