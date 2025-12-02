@@ -37,55 +37,172 @@ def parse_smoosh(state):
         return parse_logical_or(state)
 
 def parse_logical_or(state):
-    left = parse_logical_xor(state)
-    if not left:
-        return None
-    while state['current_token'] and state['current_token']['pattern'] in ["ANY OF", "EITHER OF"]:
-        operator_token = match(state, "Logical Operator", state['current_token']['pattern'])
+    # Check if this is an n-ary ANY OF
+    if state['current_token'] and state['current_token']['pattern'] == 'ANY OF':
+        operator = 'ANY OF'
+        operator_token = match(state, "Logical Operator", operator)
+        
+        # Collect all operands until MKAY
+        operands = []
+        
+        # Parse first operand
+        operand = parse_logical_xor(state)
+        if not operand:
+            error(state, f"Expected expression after {operator}")
+            return None
+        operands.append(operand)
+        
+        # Parse AN operand pairs until MKAY
+        while state['current_token'] and state['current_token']['pattern'] == 'AN':
+            advance(state)  # consume AN
+            
+            # Check if next is MKAY (end of n-ary operation)
+            if state['current_token'] and state['current_token']['pattern'] == 'MKAY':
+                break
+            
+            operand = parse_logical_xor(state)
+            if not operand:
+                error(state, f"Expected expression after AN in {operator}")
+                return None
+            operands.append(operand)
+        
+        # Consume MKAY if present
+        if state['current_token'] and state['current_token']['pattern'] == 'MKAY':
+            match(state, "Argument End", "MKAY")
+        
+        return {
+            'node': 'logical_operation',
+            'operator': operator,
+            'operands': operands
+        }
+    
+    # Check if this is a binary EITHER OF
+    elif state['current_token'] and state['current_token']['pattern'] == "EITHER OF":
+        operator_token = match(state, "Logical Operator", "EITHER OF")
+        left = parse_logical_xor(state)
+        if not left:
+            error(state, "Expected expression after EITHER OF")
+            return None
+        
+        # Expect AN separator
+        if not (state['current_token'] and state['current_token']['pattern'] == 'AN'):
+            error(state, "Expected AN after first operand in EITHER OF")
+            return None
+        advance(state)  # consume AN
+        
         right = parse_logical_xor(state)
         if not right:
+            error(state, "Expected expression after AN in EITHER OF")
             return None
-        left = {
+        
+        return {
             'node': 'logical_operation',
-            'operator': operator_token['pattern'],
+            'operator': 'EITHER OF',
             'left': left,
             'right': right
         }
-    return left
+    
+    # Otherwise, just parse next level
+    return parse_logical_xor(state)
     
 def parse_logical_xor(state):
-    left = parse_logical_and(state)
-    if not left:
-        return None
-    while state['current_token'] and state['current_token']['pattern'] == "WON OF":
+    # Check if this is a binary WON OF
+    if state['current_token'] and state['current_token']['pattern'] == "WON OF":
         operator_token = match(state, "Logical Operator", "WON OF")
+        left = parse_logical_and(state)
+        if not left:
+            error(state, "Expected expression after WON OF")
+            return None
+        
+        # Expect AN separator
+        if not (state['current_token'] and state['current_token']['pattern'] == 'AN'):
+            error(state, "Expected AN after first operand in WON OF")
+            return None
+        advance(state)  # consume AN
+        
         right = parse_logical_and(state)
         if not right:
+            error(state, "Expected expression after AN in WON OF")
             return None
-        left = {
+        
+        return {
             'node': 'logical_operation',
-            'operator': operator_token['pattern'],
+            'operator': 'WON OF',
             'left': left,
             'right': right
         }
-    return left
+    
+    # Otherwise, just parse next level
+    return parse_logical_and(state)
     
 def parse_logical_and(state):
-    left = parse_comparison(state)
-    if not left:
-        return None
-    while state['current_token'] and state['current_token']['pattern'] in ["BOTH OF", "ALL OF"]:
-        operator_token = match(state, "Logical Operator", state['current_token']['pattern'])
+    # Check if this is an n-ary ALL OF
+    if state['current_token'] and state['current_token']['pattern'] == 'ALL OF':
+        operator = 'ALL OF'
+        operator_token = match(state, "Logical Operator", operator)
+        
+        # Collect all operands until MKAY
+        operands = []
+        
+        # Parse first operand
+        operand = parse_comparison(state)
+        if not operand:
+            error(state, f"Expected expression after {operator}")
+            return None
+        operands.append(operand)
+        
+        # Parse AN operand pairs until MKAY
+        while state['current_token'] and state['current_token']['pattern'] == 'AN':
+            advance(state)  # consume AN
+            
+            # Check if next is MKAY (end of n-ary operation)  
+            if state['current_token'] and state['current_token']['pattern'] == 'MKAY':
+                break
+            
+            operand = parse_comparison(state)
+            if not operand:
+                error(state, f"Expected expression after AN in {operator}")
+                return None
+            operands.append(operand)
+        
+        # Consume MKAY if present
+        if state['current_token'] and state['current_token']['pattern'] == 'MKAY':
+            match(state, "Argument End", "MKAY")
+        
+        return {
+            'node': 'logical_operation',
+            'operator': operator,
+            'operands': operands
+        }
+    
+    # Check if this is a binary BOTH OF
+    elif state['current_token'] and state['current_token']['pattern'] == "BOTH OF":
+        operator_token = match(state, "Logical Operator", "BOTH OF")
+        left = parse_comparison(state)
+        if not left:
+            error(state, "Expected expression after BOTH OF")
+            return None
+        
+        # Expect AN separator
+        if not (state['current_token'] and state['current_token']['pattern'] == 'AN'):
+            error(state, "Expected AN after first operand in BOTH OF")
+            return None
+        advance(state)  # consume AN
+        
         right = parse_comparison(state)
         if not right:
+            error(state, "Expected expression after AN in BOTH OF")
             return None
-        left = {
+        
+        return {
             'node': 'logical_operation',
-            'operator': operator_token['pattern'],
+            'operator': 'BOTH OF',
             'left': left,
             'right': right
         }
-    return left
+    
+    # Otherwise, just parse comparison
+    return parse_comparison(state)
     
 def parse_comparison(state):
     # can be at the beginning

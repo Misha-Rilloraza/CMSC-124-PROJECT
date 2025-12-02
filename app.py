@@ -251,6 +251,18 @@ def extract_expression_value(expr, symbol_table, errors=None, line_no=None):
         elif node_type == 'logical_expression':
             return evaluate_logical_expr(expr, symbol_table, errors, line_no)
         
+        # Logical operation (BOTH OF, EITHER OF, WON OF, ALL OF, ANY OF)
+        elif node_type == 'logical_operation':
+            return evaluate_logical_operation(expr, symbol_table, errors, line_no)
+        
+        # Unary expression (NOT)
+        elif node_type == 'unary_expression':
+            operator = expr.get('operator')
+            operand = extract_expression_value(expr.get('operand'), symbol_table, errors, line_no)
+            if operator == 'NOT':
+                return not to_boolean(operand)
+            return operand
+        
         # Literal (generic)
         elif node_type == 'literal':
             value = expr.get('value', '')
@@ -376,6 +388,44 @@ def evaluate_logical_expr(expr, symbol_table, errors=None, line_no=None):
         return left_bool or right_bool
     elif operator == 'WON OF':
         return left_bool != right_bool
+    
+    return False
+
+def evaluate_logical_operation(expr, symbol_table, errors=None, line_no=None):
+    """Evaluate logical operations (handles both binary and n-ary operations)."""
+    if errors is None:
+        errors = []
+    
+    operator = expr.get('operator')
+    
+    # Binary operations: BOTH OF, EITHER OF, WON OF
+    if operator in ['BOTH OF', 'EITHER OF', 'WON OF']:
+        left = extract_expression_value(expr.get('left'), symbol_table, errors, line_no)
+        right = extract_expression_value(expr.get('right'), symbol_table, errors, line_no)
+        
+        left_bool = to_boolean(left)
+        right_bool = to_boolean(right)
+        
+        if operator == 'BOTH OF':
+            return left_bool and right_bool
+        elif operator == 'EITHER OF':
+            return left_bool or right_bool
+        elif operator == 'WON OF':
+            return left_bool != right_bool
+    
+    # N-ary operations: ALL OF, ANY OF (with MKAY terminator)
+    elif operator in ['ALL OF', 'ANY OF']:
+        operands = expr.get('operands', [])
+        if not operands:
+            # Try left/right format
+            operands = [expr.get('left'), expr.get('right')]
+        
+        bool_values = [to_boolean(extract_expression_value(op, symbol_table, errors, line_no)) for op in operands if op]
+        
+        if operator == 'ALL OF':
+            return all(bool_values)
+        elif operator == 'ANY OF':
+            return any(bool_values)
     
     return False
 
