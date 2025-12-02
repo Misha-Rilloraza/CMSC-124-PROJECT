@@ -329,6 +329,7 @@ def print_results(parse_tree, errors):
             part_strings = [extract_value(part) for part in parts]
             print(f" - SMOOSH parts: {part_strings}")
 
+
         # type casting details
         # elif node_type == 'type_casting':
         #     target_type = result.get('target_type', 'unknown')

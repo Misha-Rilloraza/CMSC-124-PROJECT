@@ -6,33 +6,22 @@ def parse_output_statement(state):
     # for displaying output
     token = match(state, "Output Keyword", "VISIBLE")
     if not token:
-        error(state, "Expected 'VISBLE' for output statement")
+        print("DEBUG: Not a VISIBLE statement")
         return None
+        
+    expression = parse_expression(state)
     
-    # statements following VISIBLE can be expressions or literals
-    expressions = []
-    expr = parse_expression(state)
-    if not expr:
-        error(state, "Expected expression after 'VISIBLE'")
+    if not expression:
+        error(state, "Expected expression after VISIBLE")
         return None
-    expressions.append(expr)
-
-    # for multiple expressions
-    while state['current_token'] and state['current_token']['pattern'] == 'AN':
-        advance(state)  # consume 'AN'
-        expr = parse_expression(state)
-        if not expr:
-            error(state, "Expected expression after 'AN'")
-            return None
-        expressions.append(expr)
-    
+        
     if not end_of_line(state):
-        error(state, "Unexpected tokens after output statement")
+        error(state, "Unexpected tokens after VISIBLE expression")
         return None
     
     return {
         'node': 'output_statement',
-        'expressions': expressions
+        'expression': expression
     }
 
 def parse_input_statement(state):
@@ -116,7 +105,7 @@ def parse_variable_declaration(state, in_var_declaration):
 
     return result
 
-def parse_variable_assignment(state):
+def parse_variable_assignment(state): 
     # Parse variable assignment
     # consider ITZ for variable assignment
     # consider R for variable reassignment
@@ -127,40 +116,54 @@ def parse_variable_assignment(state):
         state["position"] = start_pos
         return None
     
+    
+    # Get identifier - use the correct field name
+    identifier = var_token.get("value", var_token.get("pattern", ""))
+    print(f"poot: iden extracted: '{identifier}'")
+    
     if end_of_line(state):
         return {
             'node': 'variable_reference',
-            'identifier': var_token["value"]
+            'identifier': identifier
         }
     
     next_token = peek_token(state)
+    print(f"poot: next token: {next_token}")
+    
     if not next_token:
         return {
             'node': 'variable_reference',
-            'identifier': var_token["value"]
+            'identifier': identifier
         }
     
     assign_token = None
     operator = None
     used_operator = None
     
-    if next_token["value"] == "R":
+    next_token_value = next_token.get("value", next_token.get("pattern", ""))
+    print(f"poot: Next token value: '{next_token_value}'")
+    
+    if next_token_value == "R":
+        print(f"poot: bilis R")
         assign_token = match(state, "Variable Reassignment", "R")
         if assign_token:
             operator = 'reassignment'
             used_operator = 'R'
+            print(f"poot: mathc R")
     
-    elif next_token["value"] == "ITZ":
+    elif next_token_value == "ITZ":
+        print(f"poot: bilis ITZ")
         assign_token = match(state, "Variable Assignment", "ITZ")
         if assign_token:
             operator = 'assignment'
             used_operator = 'ITZ'
+            print(f"poot: match ITZ")
     
     if not assign_token:
         state["position"] = start_pos + 1
         return {
             'node': 'variable_reference',
-            'identifier': var_token["value"]
+            'identifier': identifier
         }
     
     expr = parse_expression(state)
@@ -176,7 +179,7 @@ def parse_variable_assignment(state):
     
     result = {
         'node': 'variable_assignment',
-        'identifier': var_token["value"],
+        'identifier': identifier,
         'operator': operator,
         'used_operator': used_operator,
         'expression': expr

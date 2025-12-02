@@ -1,8 +1,40 @@
-from helper import extract_value, error, match, advance, end_of_line
+from helper import extract_value, error, match, advance, end_of_line, peek_token
+
+# def parse_expression(state):
+#     # be mindful of operator precedence
+#     return parse_logical_or(state)
+
+def parse_logical_expression(state):
+    """
+    Parse logical expressions that could be:
+    1. Prefix: ANY OF x AN y AN z
+    2. Infix: x ANY OF y (less common in LOLCODE)
+    """
+    start_pos = state['position']
+    
+    # Check for prefix logical operators
+    current_token = state['current_token']
+    if current_token and current_token.get('pattern') in ["ANY OF", "EITHER OF", "WON OF", "BOTH OF", "ALL OF"]:
+        return parse_multi_operand_logical(state)
+    
+    # Check for NOT (unary)
+    if current_token and current_token.get('pattern') == "NOT":
+        return parse_unary_expression(state)
+    
+    # If not a logical operator at start, try infix parsing
+    # (Your existing parse_logical_or, parse_logical_xor, etc.)
+    
+    state['position'] = start_pos
+    return None
 
 def parse_expression(state):
-    # be mindful of operator precedence
-    return parse_logical_or(state)
+    # Try logical expressions first (prefix operators)
+    result = parse_logical_expression(state)
+    if result:
+        return result
+    
+    # Then try your existing operator precedence parsing
+    return parse_logical_or(state)  # or whatever your main entry point is
 
 def parse_logical_or(state):
     left = parse_logical_xor(state)
@@ -114,31 +146,102 @@ def parse_term(state):
         }
     return left
     
+# def parse_factor(state):
+#     if not state['current_token']:
+#         error(state, "Unexpected end of line in expression")
+#         return None
+    
+
+    
+#     if state['current_token']['pattern'] == "NOT":
+#         return parse_unary_expression(state)
+#     if state['current_token']['pattern'] in ["BIGGR OF", "SMALLR OF", "BOTH SAEM", "DIFFRINT"]:
+#         return parse_comparison_expression(state)
+#     elif state['current_token']['pattern'] in ["SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF"]:
+#         return parse_arithmetic_expression(state)
+#     elif state['current_token']['token_name'] in ["Variable Identifier", "String Literal", "Boolean Literal", "Type Literal", "Float Literal", "Integer Literal"]:
+#         return parse_simple_expression(state)
+#     elif state['current_token']['pattern'] == "SMOOSH":
+#         return parse_smoosh(state)
+#     # elif state['current_token']['pattern'] == "MAEK" or (state['current_token']['token_name'] != "Variable Identifier" and state['current_token']['pattern'] == "IS NOW A"):
+#     #     return parse_type_casting(state)
+#     elif state['current_token']['pattern'] == "MAEK":
+#         return parse_explicit_type_cast(state)
+#     elif state['current_token']['pattern'] == "Variable Identifier":
+#         if state['current_token'] and state['current_token']['pattern'] == "IS NOW A":
+#             return parse_is_now_a_type_cast(state)
+#     else:
+#         error(state, f"Unexpected token in expression: {state['current_token']['pattern']}")
+#         return None
+
 def parse_factor(state):
     if not state['current_token']:
         error(state, "Unexpected end of line in expression")
         return None
     
-    if state['current_token']['pattern'] == "NOT":
+    current_token = state['current_token']
+    token_pattern = current_token.get('pattern', '')
+        
+    if token_pattern == "NOT":
         return parse_unary_expression(state)
-    if state['current_token']['pattern'] in ["BIGGR OF", "SMALLR OF", "BOTH SAEM", "DIFFRINT"]:
+    if token_pattern in ["BOTH OF", "EITHER OF", "WON OF", "ALL OF", "ANY OF"]:
+        return parse_multi_operand_logical(state)
+    if token_pattern in ["BIGGR OF", "SMALLR OF", "BOTH SAEM", "DIFFRINT"]:
         return parse_comparison_expression(state)
-    elif state['current_token']['pattern'] in ["SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF"]:
+    elif token_pattern in ["SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF"]:
         return parse_arithmetic_expression(state)
     elif state['current_token']['token_name'] in ["Variable Identifier", "String Literal", "Boolean Literal", "Type Literal", "Float Literal", "Integer Literal"]:
         return parse_simple_expression(state)
-    elif state['current_token']['pattern'] == "SMOOSH":
+    elif token_pattern == "SMOOSH":
         return parse_smoosh(state)
-    # elif state['current_token']['pattern'] == "MAEK" or (state['current_token']['token_name'] != "Variable Identifier" and state['current_token']['pattern'] == "IS NOW A"):
-    #     return parse_type_casting(state)
-    elif state['current_token']['pattern'] == "MAEK":
+    elif token_pattern == "MAEK":
         return parse_explicit_type_cast(state)
-    elif state['current_token']['pattern'] == "Variable Identifier":
-        if state['current_token'] and state['current_token']['pattern'] == "IS NOW A":
-            return parse_is_now_a_type_cast(state)
     else:
-        error(state, f"Unexpected token in expression: {state['current_token']['pattern']}")
+        error(state, f"Unexpected token in expression: {token_pattern}")
         return None
+    
+def parse_multi_operand_logical(state):
+    # magkakaroon ng instance na may more than one talagang expressions
+    # tho pwede na rin sana i-recursion pero I think baka maginfinite
+    # kasi left and right chinecheck niya
+    start_pos = state['position']
+    
+    operator_token = match(state, "Logical Operator", state['current_token']['pattern'])
+    if not operator_token:
+        state['position'] = start_pos
+        return None
+    
+    operator = operator_token['pattern']
+    
+    operands = []
+    first_operand = parse_expression(state)
+    if not first_operand:
+        error(state, f"Expected first operand after {operator}")
+        state['position'] = start_pos
+        return None
+    operands.append(first_operand)
+    
+    while True:
+        if not peek_token(state, expected_value="AN"):
+            break
+        
+        match(state, "Multiple Parameter Separator", "AN")
+        
+        next_operand = parse_expression(state)
+        if not next_operand:
+            error(state, f"Expected operand after AN in {operator}")
+            state['position'] = start_pos
+            return None
+        operands.append(next_operand)
+    
+    if peek_token(state, expected_value="MKAY"):
+        match(state, "Expression Terminator", "MKAY")
+    
+    return {
+        'node': 'multi_operand_logical',
+        'operator': operator,
+        'operands': operands
+    }
     
 def parse_unary_expression(state):
     # Parse NOT
@@ -218,62 +321,114 @@ def parse_arithmetic_expression(state):
     return results
 
 def parse_simple_expression(state):
-    # Parse identifiers and literals
+    # to handle the literals and identifer
+    if not state['current_token']:
+        return None
+    
     current_token = state['current_token']
+    token_name = current_token.get('token_name')
+    pattern = current_token.get('pattern', '')
 
-    if current_token['token_name'] == 'Variable Identifier':
+    # consumed and returns as a node representing a variable reference    
+    if token_name == 'Variable Identifier':
         advance(state)
-        return {'node': 'identifier', 'value': current_token['pattern']}
-    elif current_token['token_name'] == 'String Literal':
+        return {
+            'node': 'variable_reference',
+            'identifier': pattern
+        }
+    elif token_name == 'String Literal':
         advance(state)
-        return {'node': 'string_literal', 'value': current_token['pattern']}
-    elif current_token['token_name'] == 'Boolean Literal':
+        value = pattern
+        if value.startswith('"') and value.endswith('"'):
+            value = value[1:-1]
+        return {
+            'node': 'string_literal',
+            'value': value
+        }
+    elif token_name == 'Boolean Literal':
+        # save the mismong value (TRUE/FALSE)
         advance(state)
-        return {'node': 'boolean_literal', 'value': current_token['pattern']}
-    elif current_token['token_name'] == 'Type Literal':
+        bool_value = pattern.upper() == 'WIN'
+        return {
+            'node': 'boolean_literal',
+            'value': bool_value
+        }
+    elif token_name == 'Type Literal':
         advance(state)
-        return {'node': 'type_literal', 'value': current_token['pattern']}
-    elif current_token['token_name'] == 'Float Literal':
+        return {
+            'node': 'type_literal',
+            'value': pattern
+        }
+    elif token_name == 'Float Literal':
         advance(state)
-        return {'node': 'float_literal', 'value': current_token['pattern']}
-    elif current_token['token_name'] == 'Integer Literal':
+        try:
+            return {
+                'node': 'float_literal',
+                'value': float(pattern)
+            }
+        except ValueError:
+            return {
+                'node': 'float_literal',
+                'value': 0.0
+            }
+    elif token_name == 'Integer Literal':
         advance(state)
-        return {'node': 'integer_literal', 'value': current_token['pattern']}
+        try:
+            return {
+                'node': 'integer_literal',
+                'value': int(pattern)
+            }
+        except ValueError:
+            return {
+                'node': 'integer_literal',
+                'value': 0
+            }
     else:
-        error(state, f"Unexpected expression: '{current_token['pattern']}'")
         return None
     
 def parse_smoosh(state):
     # Parse SMOOSH
+    # be mindful of the expressions
+    # expressions can be multiple or single
+    # remember that SMOOSH comes before the expressions combined with AN
     operator_token = match(state, "String Concatenation", "SMOOSH")
     if not operator_token:
         return None
     
-    strings = []
-    while True:
-        string_expr = parse_simple_expression(state)
-        if not string_expr:
-            error(state, "Expected string in SMOOSH")
-            return None
-        strings.append(string_expr)
+    # store the expressions here
+    expressions = []
 
-        if state['current_token'] and state['current_token']['pattern'] == "AN":
-            advance(state)
-        else:
+    f_expr = parse_expression(state)
+    print(f"DEBUG: First expression result: {f_expr}")
+    
+    if not f_expr:
+        error(state, "Expected an expression/literal in SMOOSH")
+        return None
+    expressions.append(f_expr)
+
+    # for more expressions
+    expr_count = 1
+    while True:
+        print(f"poot: counter AN #{expr_count}...")
+        if not peek_token(state, expected_value="AN"):
+            print(f"poot: wala na AN")
             break
 
-        if not state['current_token']:
-            error(state, "Unexpected end of line in SMOOSH")
+        match(state, "Multiple Parameter Separator", "AN")
+        expr_count += 1
+        
+        l_expr = parse_expression(state)
+        
+        if not l_expr:
+            error(state, "Expected expression/literal after AN")
             return None
-    
-    if len(strings) < 2:
-        error(state, "SMOOSH requires at least two strings")
-        return None
+        expressions.append(l_expr)
+
+    print(f"DEBUG: SMOOSH parsed {len(expressions)} expressions")
     
     results = {
         'node': 'smoosh_expression',
-        'strings': strings,
-        'token': operator_token
+        'expressions': expressions,
     }
     return results
 
