@@ -281,10 +281,15 @@ def parse_type_casting(state):
     # tokens used: MAEK <expr> A <literal>
     # another way of type casting: IS NOW A
     # be mindful of both
+    token = state.get('current_token')
+    if not token:
+        return None
+    
     if state['current_token'] and state['current_token']['pattern'] == "MAEK":
         return parse_explicit_type_cast(state)
-    else:
+    elif pattern_for_isnowa(token):
         return parse_is_now_a_type_cast(state)
+    return None
     
 
 def parse_explicit_type_cast(state):
@@ -303,8 +308,8 @@ def parse_explicit_type_cast(state):
         error(state, "Expected 'A' after expression for type casting")
         return None
     
-    type_literal = match(state, ['integer_literal', 'float_literal', 'string_literal', 'boolean_literal', 'type_literal'])
-    if not type_literal:
+    type_literal = match(state, "Type Literal")
+    if not type_literal or type_literal['type'] not in ['identifier', 'integer_literal', 'float_literal', 'string_literal', 'boolean_literal', 'type_literal']:
         error(state, "Expected type literal after 'A' for type casting")
         return None
     
@@ -332,9 +337,9 @@ def parse_is_now_a_type_cast(state):
         error(state, "Expected 'IS NOW A' for type casting")
         return None
     
-    type_literal = match(state, ['integer_literal', 'float_literal', 'string_literal', 'boolean_literal', 'type_literal'])
-    if not type_literal:
-        error(state, "Expected type literal after 'IS NOW A' for type casting")
+    type_literal = match(state, "Type Literal")
+    if not type_literal or type_literal['type'] not in ['identifier', 'integer_literal', 'float_literal', 'string_literal', 'boolean_literal', 'type_literal']:
+        error(state, "Expected type literal after 'A' for type casting")
         return None
     
     if not end_of_line(state):
@@ -348,3 +353,14 @@ def parse_is_now_a_type_cast(state):
         'token': is_NOW_A_token
     }
     return results
+
+def pattern_for_isnowa(token):
+    expression_start_tokens = [
+        "identifier",         # variable names
+        "integer_literal",
+        "float_literal",
+        "string_literal",
+        "boolean_literal",
+        "type_literal"
+    ]
+    return token and token['token_name'] in expression_start_tokens

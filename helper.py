@@ -37,6 +37,27 @@ def match(state, expected_token, expected_value=None):
             return current_token
     return None
 
+def peek_token(state, expected_value=None, expected_type=None):
+    """
+    Peek at next token without consuming.
+    """
+    if state["position"] >= len(state["tokens"]):
+        return None
+    
+    token = state["tokens"][state["position"]]
+    
+    if expected_value:
+        if token["value"] == expected_value:
+            return token
+        return None
+    
+    if expected_type:
+        if token["type"] == expected_type:
+            return token
+        return None
+    
+    return token
+
 def advance(state):
     state['position'] += 1
     if state['position'] < len(state['tokens']):

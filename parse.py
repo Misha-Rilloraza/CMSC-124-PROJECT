@@ -149,48 +149,34 @@ def parse_line(state):
         return parse_variable_declaration_end(state)
     elif pattern_value == "I HAS A":
         return parse_variable_declaration(state, in_var_declaration=True)
-    # elif current_token['token_name'] == "Variable Identifier":
-    #     # return parse_variable_assignment(state)
-    #     if len(state['tokens']) > 1:
-    #         next_token = state['tokens'][1]['pattern']
-    #         if next_token == 'R' or next_token == 'ITZ':
-    #             return parse_variable_assignment(state)
-    #         elif next_token == 'IS NOW A':
-    #             return parse_is_now_a_type_cast(state)
-    #         else:
-    #             # this is to handle cases where variable reference is not alone
-    #             return parse_variable_reference(state)
-    #     else:
-    #         # we parse as variable reference if single token
-    #         return parse_variable_reference(state)
+    elif current_token['token_name'] == "Variable Identifier":
+        return parse_variable_assignment(state)
     elif pattern_value == "VISIBLE":
         return parse_output_statement(state)
     elif pattern_value == "GIMMEH":
         return parse_input_statement(state)
     elif pattern_value == "SMOOSH":
         return parse_smoosh(state)
-
     # elif pattern_value == "MAEK":
     #     return parse_type_casting(state)
-    # result = parse_if_structure(state)
-    # if result:
-    #     return result
-    # elif pattern_value == "O RLY?":
-    #     return parse_if_statement_start(state)
-    # elif pattern_value == "YA RLY":
-    #     return parse_then_statement(state)
-    # elif pattern_value == "MEBBE":
-    #     return parse_elseif_statement(state)
-    # elif pattern_value == "NO WAI":
-    #     return parse_else_statement(state)
-    # elif pattern_value == "OIC":
-    #     return parse_oic(state)
-    # elif pattern_value == "WTF?":
-    #     return parse_switch_structure(state)
-    # elif pattern_value == "OMG":
-    #     return parse_switch_cases(state)
-    # elif pattern_value == "OMGWTF":
-    #     return parse_default_case(state)
+    elif pattern_value in ["BOTH SAEM", "DIFFRINT", "BIGGR OF", "SMALLR OF"]:
+        return parse_if_structure(state)
+    elif pattern_value == "O RLY?":
+        return parse_o_rly(state)
+    elif pattern_value == "YA RLY":
+        return parse_ya_rly(state)
+    elif pattern_value == "MEBBE":
+        return parse_mebbe(state)
+    elif pattern_value == "NO WAI":
+        return parse_no_wai(state)
+    elif pattern_value == "OIC":
+        return parse_oic(state)
+    elif pattern_value == "WTF?":
+        return parse_switch_structure(state)
+    elif pattern_value == "OMG":
+        return parse_omg(state)
+    elif pattern_value == "OMGWTF":
+        return parse_omgwtf(state)
     # for expressions as standalone statements
     # most likely that appears in the beginning as well
     elif pattern_value in ["BOTH SAEM", "DIFFRINT", "BIGGR OF", "SMALLR OF", 
@@ -323,12 +309,12 @@ def print_results(parse_tree, errors):
             identifier = result.get('identifier', 'unknown')
             print(f" - Variable Reference: '{identifier}'")
 
-        # elif node_type == 'variable_assignment':
-        #     identifier = result.get('identifier', 'unknown')
-        #     operator = result.get('operator', 'unknown')
-        #     expr_string = extract_value(result.get('expression', {}))
-        #     expr_type = result.get('expression', {}).get('node', 'unknown')
-        #     print(f" - {identifier} {operator} {expr_type}: '{expr_string}'")
+        elif node_type == 'variable_assignment':
+            identifier = result.get('identifier', 'unknown')
+            operator = result.get('operator', 'unknown')
+            expr_string = extract_value(result.get('expression', {}))
+            expr_type = result.get('expression', {}).get('node', 'unknown')
+            print(f" - {identifier} {operator} {expr_type}: '{expr_string}'")
 
         # for the expression details
         elif node_type == 'expression_statement':

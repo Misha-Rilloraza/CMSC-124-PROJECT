@@ -1,4 +1,4 @@
-HAI 1.2
+HAI
 
 BTW Declare and initialize boolean variables
 I HAS A isCat ITZ WIN

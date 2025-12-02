@@ -1,4 +1,4 @@
-from helper import extract_value, error, match, advance, end_of_line
+from helper import error, match, advance, end_of_line, peek_token
 from expressions import parse_expression
 
 def parse_output_statement(state):
@@ -118,75 +118,68 @@ def parse_variable_declaration(state, in_var_declaration):
 
 def parse_variable_assignment(state):
     # Parse variable assignment
-    # Consider ITZ for variable assignment
-    # Consider R for variable reassignment
-    # expressions/values could be any literals
-    var_identifier = match(state, "Variable Identifier")
-    if not var_identifier:
+    # consider ITZ for variable assignment
+    # consider R for variable reassignment
+    start_pos = state["position"]
+    
+    var_token = match(state, "Variable Identifier")
+    if not var_token:
+        state["position"] = start_pos
         return None
     
-    if state['current_token'] and state['current_token']['pattern'] == 'R':
+    if end_of_line(state):
+        return {
+            'node': 'variable_reference',
+            'identifier': var_token["value"]
+        }
+    
+    next_token = peek_token(state)
+    if not next_token:
+        return {
+            'node': 'variable_reference',
+            'identifier': var_token["value"]
+        }
+    
+    assign_token = None
+    operator = None
+    used_operator = None
+    
+    if next_token["value"] == "R":
         assign_token = match(state, "Variable Reassignment", "R")
-        operator = 'reassignment'
-        used_operator = 'R'
-        # expression = parse_expression(state)
-        # if not expression:
-        #     error(state, "Expected expression after 'R'")
-        #     return None
-    elif state['current_token'] and state['current_token']['pattern'] == 'ITZ':
+        if assign_token:
+            operator = 'reassignment'
+            used_operator = 'R'
+    
+    elif next_token["value"] == "ITZ":
         assign_token = match(state, "Variable Assignment", "ITZ")
-        operator = 'assignment'
-        used_operator = 'ITZ'
-        # expression = parse_expression(state)
-        # if not expression:
-        #     error(state, "Expected expression after 'ITZ'")
-        #     return None
-    else:
-        if end_of_line(state):
-            result = {
-                'node': 'variable_reference',
-                'identifier': var_identifier['pattern']
-            }
-        else:
-            error(state, "Expected 'R' or 'ITZ' for variable assignment")
-            return None
+        if assign_token:
+            operator = 'assignment'
+            used_operator = 'ITZ'
+    
+    if not assign_token:
+        state["position"] = start_pos + 1
+        return {
+            'node': 'variable_reference',
+            'identifier': var_token["value"]
+        }
     
     expr = parse_expression(state)
     if not expr:
         error(state, "Expected expression after assignment operator")
+        state["position"] = start_pos
         return None
-    
-    expr_string = extract_value(expr)
-    expr_type = expr.get('node', 'unknown')
     
     if not end_of_line(state):
         error(state, "Unexpected tokens after assignment")
+        state["position"] = start_pos
         return None
     
     result = {
         'node': 'variable_assignment',
-        'identifier': var_identifier['pattern'],
+        'identifier': var_token["value"],
         'operator': operator,
         'used_operator': used_operator,
-        'expression': expr,
-        'expression_string': expr_string,
-        'expression_type': expr_type
+        'expression': expr
     }
-    return result
-
-def parse_variable_reference(state):
-    # this function parses variable references
-    # variable references are just variable identifiers used in expressions
-    var_identifier = match(state, "Variable Identifier")
-    if not var_identifier:
-        return None
     
-    if not end_of_line(state):
-        error(state, "Unexpected tokens after variable reference")
-        return None
-    
-    result = {
-        'node': 'variable_reference',
-        'identifier': var_identifier['pattern']
-    }
     return result
