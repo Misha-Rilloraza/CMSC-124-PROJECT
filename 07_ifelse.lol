@@ -1,6 +1,3 @@
-OBTW
-	BTW uncomment this portion if you have MEBBE
-TLDR
 HAI
 	WAZZUP
 		I HAS A choice
@@ -46,4 +43,5 @@ TLDR
 		YA RLY
 			VISIBLE "Invalid input is > 3."
 	OIC
+
 KTHXBYE

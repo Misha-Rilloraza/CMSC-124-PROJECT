@@ -1,10 +1,11 @@
 from lexer import tokenizer
-from parser import parse, print_ast
+#from parser import parse, print_ast
+from parser import parse_whole, print_results
 import sys
 
 def main():
     """Main function demonstrating both tokenization and parsing"""
-    filename = sys.argv[1] if len(sys.argv) > 1 else "smoosh_assign.lol"
+    filename = sys.argv[1] if len(sys.argv) > 1 else "04_smoosh_assign.lol"
     
     try:     
         # Step 1: Lexical Analysis
@@ -18,9 +19,10 @@ def main():
         # Step 2: Syntax Analysis
         print("\n2. SYNTAX ANALYSIS (Parsing):")
         print("-" * 40)
-        ast = parse(filename)
-        if ast:
-            print_ast(ast)
+        parse_tree, errors = parse_whole(filename)
+        if len(errors) == 0:
+            print("Parsing succeeded with no errors.")
+            print_results(parse_tree, errors)
         else:
             print("Parsing failed.")
             

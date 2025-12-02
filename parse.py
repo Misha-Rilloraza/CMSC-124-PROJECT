@@ -117,7 +117,6 @@ def parse_whole(filename):
     except Exception as e:
         print(f"Parsing error: {e}")
         return None
-    
     return parse_tree, errors
 
 def parse_line(state):

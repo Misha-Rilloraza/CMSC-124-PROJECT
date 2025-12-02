@@ -2,7 +2,39 @@ from helper import extract_value, error, match, advance
 
 def parse_expression(state):
     # be mindful of operator precedence
-    return parse_logical_or(state)
+    # SMOOSH (string concatenation) has low precedence
+    return parse_smoosh(state)
+
+def parse_smoosh(state):
+    # Parse SMOOSH (string concatenation)
+    # SMOOSH has lower precedence than logical operations
+    if state['current_token'] and state['current_token']['pattern'] == "SMOOSH":
+        operator_token = match(state, "String Concatenation", "SMOOSH")
+        operands = []
+        
+        # Parse first operand
+        operand1 = parse_logical_or(state)
+        if not operand1:
+            error(state, "Expected expression after SMOOSH")
+            return None
+        operands.append(operand1)
+        
+        # Parse AN operand pairs
+        while state['current_token'] and state['current_token']['pattern'] == 'AN':
+            advance(state)  # consume AN
+            operand = parse_logical_or(state)
+            if not operand:
+                error(state, "Expected expression after AN in SMOOSH")
+                return None
+            operands.append(operand)
+        
+        return {
+            'node': 'smoosh_expression',
+            'operands': operands
+        }
+    else:
+        # No SMOOSH, just parse logical operations
+        return parse_logical_or(state)
 
 def parse_logical_or(state):
     left = parse_logical_xor(state)
@@ -121,6 +153,8 @@ def parse_factor(state):
     
     if state['current_token']['pattern'] == "NOT":
         return parse_unary_expression(state)
+    if state['current_token']['pattern'] == "SMOOSH":
+        return parse_smoosh_expression(state)
     if state['current_token']['pattern'] in ["BIGGR OF", "SMALLR OF", "BOTH SAEM", "DIFFRINT"]:
         return parse_comparison_expression(state)
     elif state['current_token']['pattern'] in ["SUM OF", "DIFF OF", "PRODUKT OF", "QUOSHUNT OF", "MOD OF"]:
@@ -147,6 +181,37 @@ def parse_unary_expression(state):
         'operator': 'NOT',
         'operand': operand,
         'token': operator_token
+    }
+    return results
+
+def parse_smoosh_expression(state):
+    # Parse SMOOSH concatenation: SMOOSH <expr> AN <expr> [AN <expr> ...]
+    operator_token = match(state, "String Concatenation")
+    if not operator_token:
+        error(state, "Expected 'SMOOSH' for string concatenation")
+        return None
+
+    operands = []
+    first = parse_factor(state)
+    if not first:
+        error(state, "Expected expression after 'SMOOSH'")
+        return None
+    operands.append(first)
+
+    # Allow multiple operands separated by AN
+    while state['current_token'] and state['current_token']['pattern'] == 'AN':
+        # consume 'AN'
+        advance(state)
+        nxt = parse_factor(state)
+        if not nxt:
+            error(state, "Expected expression after 'AN' in SMOOSH")
+            return None
+        operands.append(nxt)
+
+    results = {
+        'node': 'smoosh_expression',
+        'operator': operator_token['pattern'],
+        'operands': operands
     }
     return results
     
