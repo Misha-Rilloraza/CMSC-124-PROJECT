@@ -85,7 +85,7 @@ def parse_else_statement(state):
 
 def parse_if_end(state):
     # Parse OIC
-    cond_token = match(state, "If-Then-Else-End", "OIC")
+    cond_token = match(state, "If-Then-Else End", "OIC")
     if not cond_token:
         return None
     
@@ -163,7 +163,7 @@ def parse_default_case(state):
 
 def parse_switch_end(state):
     # Parse OIC
-    cond_token = match(state, "If-Then-Else-End", "OIC")
+    cond_token = match(state, "If-Then-Else End", "OIC")
     if not cond_token:
         return None
     

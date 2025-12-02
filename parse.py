@@ -146,6 +146,8 @@ def parse_line(state):
         return parse_output_statement(state)
     elif pattern_value == "GIMMEH":
         return parse_input_statement(state)
+    elif pattern_value in ["BOTH SAEM", "DIFFRINT", "BIGGR OF", "SMALLR OF", "BOTH OF", "EITHER OF", "WON OF", "ALL OF", "ANY OF"]:
+        return parse_expression(state)
     elif pattern_value == "O RLY?":
         return parse_if_statement_start(state)
     elif pattern_value == "YA RLY":

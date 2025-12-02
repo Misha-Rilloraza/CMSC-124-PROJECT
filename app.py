@@ -135,9 +135,14 @@ if 'awaiting_symbol_table' not in st.session_state:
     st.session_state.awaiting_symbol_table = None
 if '_gimmeh_buffer' not in st.session_state:
     st.session_state._gimmeh_buffer = []
+if '_gimmeh_history' not in st.session_state:
+    st.session_state._gimmeh_history = []
 if 'awaiting_output_lines' not in st.session_state:
     st.session_state.awaiting_output_lines = []
 if 'awaiting_semantic_errors' not in st.session_state:
+    st.session_state.awaiting_semantic_errors = []
+if 'needs_reexecution' not in st.session_state:
+    st.session_state.needs_reexecution = False
     st.session_state.awaiting_semantic_errors = []
 
 # Initialize code editor content in session state
@@ -602,7 +607,155 @@ def execute_code(code_content, user_input=""):
                         concatenated = ''.join(visible_output_parts)
                         out_lines.append(concatenated)
                         sym_table['IT'] = concatenated
+                # Comparison/logical expressions (standalone, sets IT)
+                elif result.get('node') in ['comparison_operation', 'logical_operation', 'comparison_expression', 'logical_expression']:
+                    val = extract_expression_value(result, sym_table, sem_errors, line_no)
+                    sym_table['IT'] = val
+                # If-else structure
+                elif result.get('node') == 'if_statement_start':
+                    # Find the matching OIC
+                    oic_index = None
+                    for j in range(idx + 1, len(parse_tree_obj)):
+                        if parse_tree_obj[j].get('parse_result', {}).get('node') == 'if_statement_end':
+                            oic_index = j
+                            break
+                    
+                    if oic_index is None:
+                        sem_errors.append(f"Line {line_no}: If statement missing OIC")
+                        continue
+                    
+                    # Process the if-else blocks
+                    sym_table, out_lines, sem_errors = process_if_else_block(
+                        parse_tree_obj, idx, oic_index, sym_table, out_lines, sem_errors
+                    )
+                    # Skip to after OIC
+                    return process_remaining_parse_tree(parse_tree_obj, sym_table, out_lines, sem_errors, oic_index + 1)
+                    
             return sym_table, out_lines, sem_errors
+        
+        def process_if_else_block(parse_tree_obj, start_idx, end_idx, sym_table, out_lines, sem_errors):
+            """Process if-else block from O RLY? to OIC"""
+            # Get IT value (condition result)
+            condition_value = sym_table.get('IT', None)
+            
+            # Find all block boundaries
+            blocks = []
+            current_block = None
+            
+            for idx in range(start_idx + 1, end_idx):
+                entry = parse_tree_obj[idx]
+                result = entry.get('parse_result') or entry.get('ast')
+                if not result:
+                    continue
+                
+                node = result.get('node')
+                if node == 'then_statement':
+                    if current_block:
+                        blocks.append(current_block)
+                    current_block = {'type': 'YA RLY', 'condition': True, 'start': idx + 1, 'statements': []}
+                elif node == 'else_if_statement':
+                    if current_block:
+                        blocks.append(current_block)
+                    # Evaluate MEBBE condition
+                    mebbe_cond = extract_expression_value(result.get('condition'), sym_table, sem_errors, entry.get('line_number', '?'))
+                    current_block = {'type': 'MEBBE', 'condition': mebbe_cond, 'start': idx + 1, 'statements': []}
+                elif node == 'else_statement':
+                    if current_block:
+                        blocks.append(current_block)
+                    current_block = {'type': 'NO WAI', 'condition': True, 'start': idx + 1, 'statements': []}
+                else:
+                    if current_block:
+                        current_block['statements'].append(entry)
+            
+            if current_block:
+                blocks.append(current_block)
+            
+            # Execute the appropriate block
+            for block in blocks:
+                should_execute = False
+                if block['type'] == 'YA RLY':
+                    # Execute if IT is truthy (WIN, non-zero, non-empty string)
+                    should_execute = is_truthy(condition_value)
+                elif block['type'] == 'MEBBE':
+                    # Execute if MEBBE condition is truthy
+                    should_execute = is_truthy(block['condition'])
+                elif block['type'] == 'NO WAI':
+                    # Execute if we haven't executed any previous block
+                    # Check if any previous block was executed
+                    should_execute = True
+                    for prev_block in blocks:
+                        if prev_block == block:
+                            break
+                        if prev_block['type'] == 'YA RLY' and is_truthy(condition_value):
+                            should_execute = False
+                            break
+                        if prev_block['type'] == 'MEBBE' and is_truthy(prev_block['condition']):
+                            should_execute = False
+                            break
+                
+                if should_execute:
+                    # Process statements in this block
+                    for stmt_entry in block['statements']:
+                        stmt_result = stmt_entry.get('parse_result') or stmt_entry.get('ast')
+                        stmt_line_no = stmt_entry.get('line_number', '?')
+                        if not stmt_result:
+                            continue
+                        
+                        # Process the statement
+                        if stmt_result.get('node') == 'variable_declaration':
+                            name = stmt_result.get('identifier')
+                            assign = stmt_result.get('assignment')
+                            value = None
+                            if assign:
+                                value = extract_expression_value(assign, sym_table, sem_errors, stmt_line_no)
+                            sym_table[name] = value
+                        elif stmt_result.get('node') == 'variable_assignment':
+                            name = stmt_result.get('identifier')
+                            expr = stmt_result.get('expression')
+                            value = extract_expression_value(expr, sym_table, sem_errors, stmt_line_no)
+                            sym_table[name] = value
+                        elif stmt_result.get('node') == 'output_statement':
+                            exprs = stmt_result.get('expressions', [])
+                            visible_output_parts = []
+                            for expr in exprs:
+                                val = extract_expression_value(expr, sym_table, sem_errors, stmt_line_no)
+                                visible_output_parts.append(format_value_for_display(val))
+                            if visible_output_parts:
+                                concatenated = ''.join(visible_output_parts)
+                                out_lines.append(concatenated)
+                                sym_table['IT'] = concatenated
+                        elif stmt_result.get('node') == 'input_statement':
+                            var_name = stmt_result.get('identifier')
+                            if st.session_state._gimmeh_buffer:
+                                value = st.session_state._gimmeh_buffer.pop(0)
+                                sym_table[var_name] = value
+                            else:
+                                st.session_state.awaiting_input = True
+                                st.session_state.awaiting_var = var_name
+                                st.session_state.awaiting_symbol_table = sym_table
+                                st.session_state.awaiting_output_lines = out_lines
+                                st.session_state.awaiting_semantic_errors = sem_errors
+                                st.session_state.console_output = f"Input required for variable '{var_name}'. Enter value below and press Submit."
+                                return sym_table, out_lines, sem_errors
+                        elif stmt_result.get('node') in ['comparison_operation', 'logical_operation', 'comparison_expression', 'logical_expression']:
+                            val = extract_expression_value(stmt_result, sym_table, sem_errors, stmt_line_no)
+                            sym_table['IT'] = val
+                    # Only execute one block
+                    break
+            
+            return sym_table, out_lines, sem_errors
+        
+        def is_truthy(value):
+            """Check if value is truthy in LOLCODE (WIN, non-zero, non-empty)"""
+            if value is None:
+                return False
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, (int, float)):
+                return value != 0
+            if isinstance(value, str):
+                return value != '' and value.upper() != 'FAIL'
+            return False
 
         # Start processing from the top (this may pause on first GIMMEH)
         symbol_table, output_lines, semantic_errors = process_remaining_parse_tree(parse_tree, symbol_table, output_lines, semantic_errors, 0)
@@ -763,6 +916,11 @@ with tables_col:
 if st.button("Execute Code", type="primary", use_container_width=True):
     # Check if there is code to execute
     if st.session_state.code_content.strip():
+        # Clear the buffer and state on new execution
+        st.session_state._gimmeh_buffer = []
+        st.session_state._gimmeh_history = []  # Track all inputs in order
+        st.session_state.awaiting_input = False
+        st.session_state.needs_reexecution = False
         # Show spinner animation while executing
         with st.spinner("Executing..."):
             execute_code(st.session_state.code_content, "")
@@ -771,6 +929,15 @@ if st.button("Execute Code", type="primary", use_container_width=True):
     else:
         # Show warning if no code is present
         st.warning("Please load or enter code first!!!")
+
+# Handle re-execution after input
+if st.session_state.needs_reexecution:
+    st.session_state.needs_reexecution = False
+    # Reset buffer from history before re-execution
+    st.session_state._gimmeh_buffer = list(st.session_state._gimmeh_history)
+    with st.spinner("Executing..."):
+        execute_code(st.session_state.code_content, "")
+    st.rerun()
 
 # OUTPUT CONSOLE ---------------------------------------------------------------
 st.markdown('<div class="section-header">Output</div>', unsafe_allow_html=True)
@@ -814,95 +981,25 @@ if st.session_state.awaiting_input:
         sym = st.session_state.awaiting_symbol_table or {}
         sym[st.session_state.awaiting_var] = val
         st.session_state.awaiting_symbol_table = sym
-        st.session_state._gimmeh_buffer = st.session_state._gimmeh_buffer or []
+        
+        # Initialize history if needed
+        if '_gimmeh_history' not in st.session_state:
+            st.session_state._gimmeh_history = []
+        
+        # Add to history of all inputs in order
+        st.session_state._gimmeh_history.append(val)
         
         # Append the input to output lines for display 
         if st.session_state.awaiting_output_lines is None:
             st.session_state.awaiting_output_lines = []
         
-        # Resume execution from saved parse tree position
-        try:
-            parse_tree_saved = st.session_state.awaiting_parse_tree or []
-            start_idx = st.session_state.awaiting_parse_index or 0
-            out_lines = st.session_state.awaiting_output_lines or []
-            sem_errs = st.session_state.awaiting_semantic_errors or []
-            # Continue processing remaining lines
-            for idx in range(start_idx, len(parse_tree_saved)):
-                entry = parse_tree_saved[idx]
-                result = entry.get('parse_result') or entry.get('ast')
-                line_no = entry.get('line_number', '?')
-                if not result:
-                    continue
-                if result.get('node') == 'input_statement':
-                    var_name = result.get('identifier')
-                    if st.session_state._gimmeh_buffer:
-                        next_val = st.session_state._gimmeh_buffer.pop(0)
-                        st.session_state.awaiting_symbol_table[var_name] = next_val
-                        continue
-                    # No buffered input: pause again
-                    st.session_state.awaiting_input = True
-                    st.session_state.awaiting_var = var_name
-                    st.session_state.awaiting_parse_index = idx + 1
-                    st.session_state.awaiting_parse_tree = parse_tree_saved
-                    st.session_state.awaiting_output_lines = out_lines
-                    st.session_state.awaiting_semantic_errors = sem_errs
-                    st.session_state.console_output = f"> Waiting for input for '{var_name}'"
-                    st.rerun()
-                # Variable declaration
-                if result.get('node') == 'variable_declaration':
-                    name = result.get('identifier')
-                    assign = result.get('assignment')
-                    value = None
-                    if assign:
-                        value = extract_expression_value(assign, st.session_state.awaiting_symbol_table, sem_errs, line_no)
-                    st.session_state.awaiting_symbol_table[name] = value
-                elif result.get('node') == 'variable_assignment':
-                    name = result.get('identifier')
-                    expr = result.get('expression')
-                    value = extract_expression_value(expr, st.session_state.awaiting_symbol_table, sem_errs, line_no)
-                    st.session_state.awaiting_symbol_table[name] = value
-                elif result.get('node') == 'output_statement':
-                    exprs = result.get('expressions', [])
-                    visible_output_parts = []
-                    for expr in exprs:
-                        val = extract_expression_value(expr, st.session_state.awaiting_symbol_table, sem_errs, line_no)
-                        visible_output_parts.append(format_value_for_display(val))
-                    # VISIBLE concatenates all expressions and outputs on a single line
-                    if visible_output_parts:
-                        concatenated = ''.join(visible_output_parts)
-                        out_lines.append(concatenated)
-                        st.session_state.awaiting_symbol_table['IT'] = concatenated
-
-            # Finished execution - clear awaiting state and write outputs
-            st.session_state.awaiting_input = False
-            st.session_state.console_output = ''
-            # Format final console with semantic errors and outputs
-            console_parts = []
-            if sem_errs:
-                console_parts.append('=== SEMANTIC ERRORS ===')
-                console_parts.extend(sem_errs)
-                console_parts.append('')
-            if out_lines:
-                console_parts.extend(out_lines)
-            st.session_state.console_output = '\n'.join(console_parts) if console_parts else 'No output.'
-            # Update displayed symbol table
-            st.session_state.symbol_table = [
-                {
-                    'Variable': k,
-                    'Value': format_value_for_display(v),
-                    'Type': get_lolcode_type(v)
-                }
-                for k, v in (st.session_state.awaiting_symbol_table or {}).items()
-            ]
-            # Clear awaiting stored data
-            st.session_state.awaiting_parse_tree = None
-            st.session_state.awaiting_parse_index = None
-            st.session_state.awaiting_symbol_table = None
-            st.session_state.awaiting_output_lines = []
-            st.session_state.awaiting_semantic_errors = []
-            st.rerun()
-        except Exception as e:
-            st.session_state.console_output = f"Error while resuming execution: {e}"
+        # Clear the awaiting state and trigger re-execution
+        st.session_state.awaiting_input = False
+        st.session_state.awaiting_var = None
+        
+        # Set flag to re-execute the program
+        st.session_state.needs_reexecution = True
+        st.rerun()
 
 elif st.session_state.console_output:
     # Display output with custom styling
